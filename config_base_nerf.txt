@@ -1,0 +1,12 @@
+loss = l2
+basedir = logs
+datadir = data/synthetic_testing/l2
+dataset_type = us
+no_batching = True
+output_ch = 5
+
+N_samples = 512
+
+i_embed = 6
+probe_depth = 139
+probe_width = 80

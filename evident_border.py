@@ -160,6 +160,7 @@ def detect_edges(
 
     return edges_binary
 
+
 def get_borders(image: np.ndarray, **kwargs) -> np.ndarray:
 
     filtered = speckle_reducing_anisotropic_diffusion(image, **kwargs)
@@ -169,6 +170,7 @@ def get_borders(image: np.ndarray, **kwargs) -> np.ndarray:
     border_skeleton = skeletonize(eroded_borders)
 
     return border_skeleton
+
 
 def main():
 
@@ -215,7 +217,9 @@ def main():
     # plt.imshow(border_skeleton)
     # plt.title("Skeleton")
 
-    borders = get_borders(test_image, niter=niter, kappa=kappa, lambda_=lambda_, eps=eps)
+    borders = get_borders(
+        test_image, niter=niter, kappa=kappa, lambda_=lambda_, eps=eps
+    )
 
     plt.figure(figsize=(8, 5))
     plt.subplot(1, 2, 1)

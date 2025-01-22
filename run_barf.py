@@ -11,8 +11,15 @@ from tqdm import trange
 
 from evident_border import get_borders
 from load_us import load_us_data
-from run_ultranerf_helpers import (BARF, PoseRefine, get_embedder,
-                                   get_rays_us_linear, img2mse)
+from run_ultranerf_helpers import (
+    BARF,
+    PoseRefine,
+    get_embedder,
+    get_rays_us_linear,
+    img2mse,
+)
+
+torch.cuda.set_per_process_memory_fraction(0.8)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
@@ -98,9 +105,7 @@ def render_method_convolutional_ultrasound(raw, z_vals):
     border_indicator = border_distribution.sample().detach()
 
     reflection_coeff = torch.sigmoid(raw[..., 1])
-    reflection_transmission = (
-        1.0 - reflection_coeff
-    )  # PAPER CODE DIFFERENCE
+    reflection_transmission = 1.0 - reflection_coeff  # PAPER CODE DIFFERENCE
     log_reflection_transmission = torch.log(reflection_transmission + 1e-8)
     log_reflection_transmission = exclusive_cumsum(log_reflection_transmission)
     reflection_transmission = torch.exp(log_reflection_transmission)
@@ -226,7 +231,6 @@ def create_barf(args):
         L=args.L,
     ).to(device)
 
-
     grad_vars = list(model.parameters())
 
     network_query_fn = lambda inputs, network_fn: run_network(
@@ -338,6 +342,7 @@ def config_parser():
     parser.add_argument("--border_lambda", type=float, default=0.0)
     parser.add_argument("--tensorboard", action="store_true")
     parser.add_argument("--confmap", type=bool, default=False)
+    parser.add_argument("--pose_path", type=str, default=None)
 
     parser.add_argument("--pose_lr", type=float, default=1e-3)
     parser.add_argument("--pose_lr_end", type=float, default=1e-5)
@@ -474,14 +479,14 @@ def config_parser():
     parser.add_argument(
         "--i_print",
         type=int,
-        default=10000,
+        default=2000,
         help="frequency of console printout and metric loggin",
     )
     parser.add_argument(
         "--i_img", type=int, default=100, help="frequency of tensorboard image logging"
     )
     parser.add_argument(
-        "--i_weights", type=int, default=20000, help="frequency of weight ckpt saving"
+        "--i_weights", type=int, default=50000, help="frequency of weight ckpt saving"
     )
     parser.add_argument(
         "--i_testset", type=int, default=5000000, help="frequency of testset saving"
@@ -510,7 +515,13 @@ def train():
     K = None
 
     if args.dataset_type == "us":
-        images, poses, i_test = load_us_data(args.datadir, confmap=args.confmap)
+
+        if args.pose_path:
+            pose_path = args.pose_path
+        else:
+            pose_path = None
+
+        images, poses, i_test = load_us_data(args.datadir, confmap=args.confmap, pose_path=pose_path)
 
         if not isinstance(i_test, list):
             i_test = [i_test]
@@ -550,7 +561,7 @@ def train():
     expname = args.expname
 
     if args.tensorboard:
-        writer = SummaryWriter(log_dir=os.path.join(basedir, 'summaries', expname))
+        writer = SummaryWriter(log_dir=os.path.join(basedir, "summaries", expname))
 
     os.makedirs(os.path.join(basedir, expname), exist_ok=True)
 
@@ -569,21 +580,20 @@ def train():
         args
     )
 
-   
     # Create pose refiner
     pose_refine = PoseRefine(poses=torch.tensor(poses[:, :3, :4]), mode="train")
     pose_refine = pose_refine.to(device)
 
     pose_optim = torch.optim.Adam(pose_refine.parameters(), args.pose_lr)
-    gamma = (args.pose_lr_end/args.pose_lr)**(1./args.n_iters)
+    gamma = (args.pose_lr_end / args.pose_lr) ** (1.0 / args.n_iters)
     pose_sched = torch.optim.lr_scheduler.ExponentialLR(pose_optim, gamma)
 
     if render_kwargs_train["ckpt"] is not None:
-        pose_refine.load_state_dict(render_kwargs_train["ckpt"]["pose_refine_state_dict"])
+        pose_refine.load_state_dict(
+            render_kwargs_train["ckpt"]["pose_refine_state_dict"]
+        )
         pose_optim.load_state_dict(render_kwargs_train["ckpt"]["pose_optim_state_dict"])
         pose_sched.load_state_dict(render_kwargs_train["ckpt"]["pose_sched_state_dict"])
-
-    global_step = start
 
     bds_dict = {
         "near": near,
@@ -603,18 +613,17 @@ def train():
     # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
 
     start = start + 1
-    for i in trange(start, N_iters):
+    for i in trange(start, N_iters + 1):
         time0 = time.time()
 
         render_kwargs_train["network_fn"].progress.data.fill_(i / N_iters)
-
 
         img_i = np.random.choice(i_train)
         target = torch.transpose(torch.tensor(images[img_i]), 0, 1).to(device)
 
         pose = pose_refine.get_pose(int(img_i))
-        #pose = torch.from_numpy(poses[img_i, :3, :4]).to(device)
-        
+        # pose = torch.from_numpy(poses[img_i, :3, :4]).to(device)
+
         ssim_weight = args.ssim_lambda
         l2_weight = 1.0 - ssim_weight
 
@@ -643,8 +652,10 @@ def train():
 
         if args.warmup_pose:
             # simple linear warmup of pose learning rate
-            pose_optim.param_groups[0]["lr_orig"] = pose_optim.param_groups[0]["lr"] # cache the original learning rate
-            pose_optim.param_groups[0]["lr"] *= min(1, i/args.warmup_pose)
+            pose_optim.param_groups[0]["lr_orig"] = pose_optim.param_groups[0][
+                "lr"
+            ]  # cache the original learning rate
+            pose_optim.param_groups[0]["lr"] *= min(1, i / args.warmup_pose)
 
         optimizer.zero_grad()
 
@@ -656,11 +667,24 @@ def train():
 
         # Calculate border loss
         if args.border_lambda > 0.0:
-            evident_borders = torch.tensor(get_borders(target.detach().cpu().numpy(), niter=10, kappa=0.1, lambda_=0.1, eps=1e-8)).float().to(device)
+            evident_borders = (
+                torch.tensor(
+                    get_borders(
+                        target.detach().cpu().numpy(),
+                        niter=10,
+                        kappa=0.1,
+                        lambda_=0.1,
+                        eps=1e-8,
+                    )
+                )
+                .float()
+                .to(device)
+            )
             pred_border_indicator = rendering_output["border_indicator"]
 
             loss["border"] = (
-                (args.border_lambda, torch.mean(torch.abs(pred_border_indicator - evident_borders)))
+                args.border_lambda,
+                torch.mean(torch.abs(pred_border_indicator - evident_borders)),
             )
 
         total_loss = sum(loss[k][0] * loss[k][1] for k in loss)
@@ -670,7 +694,9 @@ def train():
         pose_optim.step()
 
         if args.warmup_pose:
-            pose_optim.param_groups[0]["lr"] = pose_optim.param_groups[0]["lr_orig"] # reset learning rate
+            pose_optim.param_groups[0]["lr"] = pose_optim.param_groups[0][
+                "lr_orig"
+            ]  # reset learning rate
 
         pose_sched.step()
 
@@ -678,32 +704,31 @@ def train():
         ###   update learning rate   ###
         decay_rate = 0.1
         decay_steps = args.lrate_decay * 1000
-        new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
+        new_lrate = args.lrate * (decay_rate ** (i / decay_steps))
         for param_group in optimizer.param_groups:
             param_group["lr"] = new_lrate
         ################################
 
         if args.tensorboard:
-            writer.add_scalar('Loss/total_loss', total_loss.item(), global_step)    
+            writer.add_scalar("Loss/total_loss", total_loss.item(), i)
             for k, v in loss.items():
-                writer.add_scalar(f'Loss/{k}', v[1].item(), global_step)
-            writer.add_scalar('Learning rate', new_lrate, global_step)
-            writer.add_scalar('Pose learning rate', pose_optim.param_groups[0]['lr'], global_step)
+                writer.add_scalar(f"Loss/{k}", v[1].item(), i)
+            writer.add_scalar("Learning rate", new_lrate, i)
+            writer.add_scalar(
+                "Pose learning rate", pose_optim.param_groups[0]["lr"], i
+            )
 
         dt = time.time() - time0
-        if global_step % args.i_print == 0:
+        if (i+1) % args.i_print == 0:
 
             rendering_path = os.path.join(basedir, expname, "train_rendering")
             os.makedirs(
                 os.path.join(basedir, expname, "train_rendering"), exist_ok=True
             )
 
-            print(f"Step: {global_step}, Loss: {total_loss.item()}, Time: {dt}")  # type: ignore
+            print(f"Step: {(i+1)}, Loss: {total_loss.item()}, Time: {dt}")  # type: ignore
             detailed_loss_string = ", ".join(
-                [
-                    f"{k}: {v[1].item()}"
-                    for k, v in loss.items()
-                ]
+                [f"{k}: {v[1].item()}" for k, v in loss.items()]
             )
             print(detailed_loss_string)
 
@@ -724,18 +749,18 @@ def train():
                 plt.imshow(evident_borders.detach().cpu().numpy())
 
             plt.savefig(
-                os.path.join(rendering_path, "{:08d}.png".format(global_step)),
+                os.path.join(rendering_path, "{:08d}.png".format((i+1))),
                 bbox_inches="tight",
                 dpi=200,
             )
             plt.close()
 
         # Rest is logging
-        if global_step % args.i_weights == 0:
-            path = os.path.join(basedir, expname, "{:06d}.tar".format(i))
+        if (i+1) % args.i_weights == 0:
+            path = os.path.join(basedir, expname, "{:06d}.tar".format((i+1)))
             torch.save(
                 {
-                    "global_step": global_step,
+                    "global_step": i,
                     "network_fn_state_dict": render_kwargs_train[
                         "network_fn"
                     ].state_dict(),
@@ -748,7 +773,6 @@ def train():
             )
             # print('Saved checkpoints at', path)
 
-        global_step += 1
 
 
 if __name__ == "__main__":

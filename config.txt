@@ -1,4 +1,4 @@
-expname = test
+expname = test4
 loss = l2
 basedir = logs
 datadir = data/synthetic_testing/l2
@@ -9,5 +9,5 @@ output_ch = 5
 N_samples = 512
 
 i_embed = 6
-probe_depth = 100
-probe_width = 37
+probe_depth = 139
+probe_width = 80

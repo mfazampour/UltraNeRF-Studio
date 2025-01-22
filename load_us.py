@@ -7,9 +7,13 @@ from PIL import Image
 ##########  see https://github.com/Fyusion/LLFF for original
 
 
-def _load_data(datadir, confmap):
+def _load_data(datadir, confmap, pose_path):
     # poses are 4x4 [R T] matrices
-    poses = np.load(os.path.join(datadir, "poses.npy"))
+
+    if pose_path is not None:
+        poses = np.load(pose_path)
+    else:
+        poses = np.load(os.path.join(datadir, "poses.npy"))
 
     sfx = ""
 
@@ -17,7 +21,7 @@ def _load_data(datadir, confmap):
         imgdir = os.path.join(datadir, "confidence_maps" + sfx)
     else:
         imgdir = os.path.join(datadir, "images" + sfx)
-    
+
     if not os.path.exists(imgdir):
         print(imgdir, "does not exist")
         raise ValueError
@@ -177,9 +181,9 @@ def spherify_poses(poses, bds):
     return poses_reset, new_poses, bds
 
 
-def load_us_data(datadir, confmap=False):
+def load_us_data(datadir, confmap=False, pose_path=None):
 
-    poses, imgs = _load_data(datadir, confmap=confmap)
+    poses, imgs = _load_data(datadir, confmap=confmap, pose_path=pose_path)
     print("Loaded", datadir)
     images = imgs
 
