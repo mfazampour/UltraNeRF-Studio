@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def visualize_poses(original_poses, perturbed_poses, sample_ratio=1.0, arrow_length=0.5, title=None):
     """
     Visualizes sampled original and perturbed camera poses in 3D space with reoriented axes and uniform axis scaling.

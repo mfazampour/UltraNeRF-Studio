@@ -5,380 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import trange
 
-from evident_border import get_borders
 from load_us import load_us_data
-from run_ultranerf_helpers import NeRF, get_embedder, get_rays_us_linear, img2mse
+from nerf_utils import img2mse, create_nerf
+from rendering import render_us
+
+from monai.losses.ssim_loss import SSIMLoss
+
 
 torch.cuda.set_per_process_memory_fraction(0.8)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-np.random.seed(0)
-DEBUG = False
-
-torch.cuda.set_per_process_memory_fraction(0.8)
-
-def gaussian_kernel(size: int, mean: float, std: float):
-    delta_t = 1.0
-    x_cos = torch.arange(-size, size + 1, dtype=torch.float32, device=device) * delta_t
-
-    d1 = torch.distributions.Normal(mean, std * 2.0)
-    d2 = torch.distributions.Normal(mean, std)
-
-    vals_x = torch.exp(d1.log_prob(x_cos)).to(device)
-    vals_y = torch.exp(d2.log_prob(x_cos)).to(device)
-
-    gauss_kernel = torch.outer(vals_x, vals_y)
-    gauss_kernel /= torch.sum(gauss_kernel)
-
-    return gauss_kernel
-
-
-g_size = 3
-g_mean = 0.0
-g_variance = 1.0
-g_kernel = gaussian_kernel(g_size, g_mean, g_variance)
-g_kernel = g_kernel.unsqueeze(0).unsqueeze(0)
-
-
-def batchify(fn, chunk):
-    """Constructs a version of 'fn' that applies to smaller batches."""
-    if chunk is None:
-        return fn
-
-    def ret(inputs):
-        return torch.cat(
-            [fn(inputs[i : i + chunk]) for i in range(0, inputs.shape[0], chunk)], 0
-        )
-
-    return ret
-
-
-def run_network(inputs, fn, embed_fn, netchunk=1024 * 64):
-    """Prepares inputs and applies network 'fn'."""
-    inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
-    embedded = embed_fn(inputs_flat)
-
-    outputs_flat = batchify(fn, netchunk)(embedded)
-    outputs = torch.reshape(
-        outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]]
-    )
-    return outputs
-
-
-def exclusive_cumprod(x):
-    cumprod = torch.cumprod(x, dim=1)
-    cumprod = torch.roll(cumprod, 1, dims=1)
-    cumprod[:, 0] = 1.0
-    return cumprod
-
-
-def exclusive_cumsum(x):
-    cumsum = torch.cumsum(x, dim=1)
-    cumsum = torch.roll(cumsum, 1, dims=1)
-    cumsum[:, 0] = 0.0
-    return cumsum
-
-
-def render_method_convolutional_ultrasound(raw, z_vals):
-    # Compute distances between points
-    dists = torch.abs(z_vals[..., :-1] - z_vals[..., 1:])
-    dists = torch.cat([dists, dists[:, -1:]], dim=1)
-
-    # Attenuation
-    attenuation_coeff = torch.abs(raw[..., 0])
-    log_attenuation = -attenuation_coeff * dists
-    log_attenuation_transmission = exclusive_cumsum(log_attenuation)
-    attenuation_transmission = torch.exp(log_attenuation_transmission)
-
-    # Reflection
-    prob_border = torch.sigmoid(raw[..., 2])
-    border_distribution = torch.distributions.Bernoulli(probs=prob_border)
-    border_indicator = border_distribution.sample().detach()
-
-    reflection_coeff = torch.sigmoid(raw[..., 1])
-    reflection_transmission = 1.0 - reflection_coeff  # PAPER CODE DIFFERENCE
-    log_reflection_transmission = torch.log(reflection_transmission + 1e-8)
-    log_reflection_transmission = exclusive_cumsum(log_reflection_transmission)
-    reflection_transmission = torch.exp(log_reflection_transmission)
-
-    # Border convolution
-
-    border_indicator_conv_input = border_indicator.unsqueeze(0).unsqueeze(0)
-    border_convolution = F.conv2d(border_indicator_conv_input, g_kernel, padding="same")
-    border_convolution = border_convolution.squeeze(0).squeeze(0)
-
-    # Backscattering
-    density_coeff_value = torch.sigmoid(raw[..., 3])
-    density_coeff = torch.ones_like(reflection_coeff) * density_coeff_value
-    scatter_density_distribution = torch.distributions.Bernoulli(probs=density_coeff)
-    scatterers_density = scatter_density_distribution.sample()
-
-    amplitude = torch.sigmoid(raw[..., 4])
-    scatterers_map = scatterers_density * amplitude
-    scatterers_map_conv_input = scatterers_map.unsqueeze(0).unsqueeze(0)
-    psf_scatter = F.conv2d(scatterers_map_conv_input, g_kernel, padding="same")
-    psf_scatter = psf_scatter.squeeze(0).squeeze(0)
-
-    # Compute remaining intensity
-    transmission = attenuation_transmission * reflection_transmission
-
-    # Final echo
-    b = transmission * psf_scatter
-    r = transmission * reflection_coeff * border_convolution
-    intensity_map = b + r
-
-    ret = {
-        "intensity_map": intensity_map,
-        "attenuation_coeff": attenuation_coeff,
-        "reflection_coeff": reflection_coeff,
-        "attenuation_transmission": attenuation_transmission,
-        "reflection_transmission": reflection_transmission,
-        "scatterers_density": scatterers_density,
-        "scatterers_density_coeff": density_coeff,
-        "scatter_amplitude": amplitude,
-        "b": b,
-        "r": r,
-        "transmission": transmission,
-        "border_convolution": border_convolution,
-        "border_indicator": border_indicator,
-    }
-    return ret
-
-
-def render_method_convolutional_ultrasound_alt(raw, z_vals):
-
-    # (7)
-    scattering_points_prob = torch.sigmoid(raw[..., 3])
-    scattering_points_distribution = torch.distributions.Bernoulli(
-        probs=scattering_points_prob
-    )
-    scattering_points = scattering_points_distribution.sample()
-
-    scattering_amplitude_mean = raw[..., 4]
-    scattering_amplitude = (
-        torch.randn_like(scattering_amplitude_mean) * scattering_amplitude_mean
-    )
-
-    scattering_map = scattering_points * scattering_amplitude
-
-    # (5)
-    dists = torch.abs(z_vals[..., :-1] - z_vals[..., 1:])
-    dists = torch.cat([dists, dists[:, -1:]], dim=1)
-
-    attenuation_coeff = torch.abs(raw[..., 0])
-    log_attenuation = -attenuation_coeff * dists
-    log_attenuation_transmission = exclusive_cumsum(log_attenuation)
-    attenuation_transmission = torch.exp(log_attenuation_transmission)
-
-    reflection_coeff = torch.sigmoid(raw[..., 1])
-
-    prob_border = torch.sigmoid(raw[..., 2])
-    border_distribution = torch.distributions.Bernoulli(probs=prob_border)
-    border_indicator = border_distribution.sample().detach()
-
-    reflection_transmission = (
-        1.0 - reflection_coeff
-    ) * border_indicator  # PAPER CODE DIFFERENCE
-    log_reflection_transmission = torch.log(reflection_transmission + 1e-8)
-    log_reflection_transmission = exclusive_cumsum(log_reflection_transmission)
-    reflection_transmission = torch.exp(log_reflection_transmission)
-
-    remaining_energy = attenuation_transmission * reflection_transmission
-
-    # (6)
-
-    scatter_spread = (
-        F.conv2d(scattering_map.unsqueeze(0).unsqueeze(0), g_kernel, padding="same")
-        .squeeze(0)
-        .squeeze(0)
-    )
-    backscattered_energy = scatter_spread * remaining_energy
-
-    # (4)
-
-    border_spread = (
-        F.conv2d(border_indicator.unsqueeze(0).unsqueeze(0), g_kernel, padding="same")
-        .squeeze(0)
-        .squeeze(0)
-    )
-    reflected_energy = torch.abs(remaining_energy * reflection_coeff) * border_spread
-
-    # (3)
-    intensity_map = backscattered_energy + reflected_energy
-
-    ret = {
-        "intensity_map": intensity_map,
-        "attenuation_coeff": attenuation_coeff,
-        "reflection_coeff": reflection_coeff,
-        "attenuation_transmission": attenuation_transmission,
-        "reflection_transmission": reflection_transmission,
-        "scattering_points_prob": scattering_points_prob,
-        "scattering_amplitude_mean": scattering_amplitude_mean,
-        "remaining_energy": remaining_energy,
-        "scatter_spread": scatter_spread,
-        "border_spread": border_spread,
-        "backscattered_energy": backscattered_energy,
-        "reflected_energy": reflected_energy,
-    }
-    return ret
-
-
-def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
-    """Render rays in smaller minibatches to avoid OOM."""
-    all_ret = {}
-    for i in range(0, rays_flat.shape[0], chunk):
-        ret = render_rays(rays_flat[i : i + chunk], **kwargs)
-        for k in ret:
-            if k not in all_ret:
-                all_ret[k] = []
-            all_ret[k].append(ret[k])
-
-    all_ret = {k: torch.cat(all_ret[k], 0) for k in all_ret}
-    return all_ret
-
-
-def render_us(
-    H,
-    W,
-    sw,
-    sh,
-    chunk=1024 * 32,
-    rays=None,
-    c2w=None,
-    near=0.0,
-    far=55.0 * 0.001,
-    **kwargs,
-):
-    """Render rays"""
-    if c2w is not None:
-        rays_o, rays_d = get_rays_us_linear(H, W, sw, sh, c2w)
-    else:
-        if rays is None:
-            raise ValueError("Must provide rays if c2w is not provided")
-        rays_o, rays_d = rays
-
-    ray_sh = rays_d.shape  # [..., 3]
-
-    # Create ray batch
-    rays_o = torch.reshape(rays_o, [-1, 3]).float()
-    rays_d = torch.reshape(rays_d, [-1, 3]).float()
-
-    near, far = near * torch.ones_like(rays_d[..., :1]), far * torch.ones_like(
-        rays_d[..., :1]
-    )
-    near, far = near.to(device), far.to(device)
-
-    rays = torch.cat([rays_o, rays_d, near, far], -1)
-
-    # Render and reshape
-    all_ret = batchify_rays(rays, chunk, **kwargs)
-
-    for k in all_ret:
-        k_sh = list(ray_sh[:-1]) + list(all_ret[k].shape[1:])
-        all_ret[k] = torch.reshape(all_ret[k], k_sh)
-
-    return all_ret
-
-
-def create_nerf(args):
-    """Instantiate NeRF's MLP model."""
-    embed_fn, input_ch = get_embedder(
-        args.multires, device, args.i_embed, args.i_embed_gauss
-    )
-
-    input_ch_views = 0
-    embeddirs_fn = None
-
-    output_ch = args.output_ch
-    skips = [4]
-    model = NeRF(
-        D=args.netdepth,
-        W=args.netwidth,
-        input_ch=input_ch,
-        output_ch=output_ch,
-        skips=skips,
-        input_ch_views=input_ch_views,
-    ).to(device)
-    grad_vars = list(model.parameters())
-
-    network_query_fn = lambda inputs, network_fn: run_network(
-        inputs, network_fn, embed_fn=embed_fn, netchunk=args.netchunk
-    )
-
-    # Create optimizer
-    optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
-
-    start = 0
-    basedir = args.basedir
-    expname = args.expname
-
-    ##########################
-
-    # Load checkpoints
-    if args.ft_path is not None and args.ft_path != "None":
-        ckpts = [args.ft_path]
-    else:
-        ckpts = [
-            os.path.join(basedir, expname, f)
-            for f in sorted(os.listdir(os.path.join(basedir, expname)))
-            if "tar" in f
-        ]
-
-    print("Found ckpts", ckpts)
-    if len(ckpts) > 0 and not args.no_reload:
-        ckpt_path = ckpts[-1]
-        print("Reloading from", ckpt_path)
-        ckpt = torch.load(ckpt_path)
-
-        start = ckpt["global_step"]
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-
-        # Load model
-        model.load_state_dict(ckpt["network_fn_state_dict"])
-
-    ##########################
-
-    render_kwargs_train = {
-        "network_query_fn": network_query_fn,
-        "N_samples": args.N_samples,
-        "network_fn": model,
-    }
-
-    render_kwargs_test = {k: render_kwargs_train[k] for k in render_kwargs_train}
-
-    return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer
-
-
-def render_rays(
-    ray_batch, network_fn, network_query_fn, N_samples, lindisp=False, **kwargs
-):
-    """Volumetric rendering."""
-
-    N_rays = ray_batch.shape[0]
-    rays_o, rays_d = ray_batch[:, 0:3], ray_batch[:, 3:6]  # [N_rays, 3] each
-    bounds = torch.reshape(ray_batch[..., 6:8], [-1, 1, 2])
-    near, far = bounds[..., 0], bounds[..., 1]  # [-1,1]
-
-    t_vals = torch.linspace(0.0, 1.0, steps=N_samples, device=device)
-
-    if not lindisp:
-        z_vals = near * (1.0 - t_vals) + far * (t_vals)
-    else:
-        z_vals = 1.0 / (1.0 / near * (1.0 - t_vals) + 1.0 / far * (t_vals))
-
-    z_vals = z_vals.expand([N_rays, N_samples])
-
-    origin = rays_o[..., None, :]
-    step = rays_d[..., None, :] * z_vals[..., :, None]
-    pts = origin + step
-
-    raw = network_query_fn(pts, network_fn)
-    ret = render_method_convolutional_ultrasound(raw, z_vals)
-
-    return ret
 
 
 def config_parser():
@@ -575,8 +214,12 @@ def train():
     parser = config_parser()
     args = parser.parse_args()
 
-    # Load data
-    K = None
+    if args.random_seed == 0:
+        print('Setting deterministic behaviour')
+        random_seed = 42
+        np.random.seed(random_seed)
+        torch.manual_seed(random_seed)
+
 
     if args.dataset_type == "us":
         images, poses, i_test = load_us_data(args.datadir, confmap=args.confmap, pose_path=args.pose_path)
@@ -612,31 +255,28 @@ def train():
     sx = probe_width / float(W)
     sh = sy
     sw = sx
-    # H, W = int(H), int(W)
 
-    # Create log dir and copy the config file
     basedir = args.basedir
     expname = args.expname
 
+    # Create tensorboard writer
     if args.tensorboard:
         writer = SummaryWriter(log_dir=os.path.join(basedir, "summaries", expname))
 
+    # Create log dir and copy the config file
     os.makedirs(os.path.join(basedir, expname), exist_ok=True)
-
-    f = os.path.join(basedir, expname, "args.txt")
-    with open(f, "w") as file:
+    f = os.path.join(basedir, expname, 'args.txt')
+    with open(f, 'w') as file:
         for arg in sorted(vars(args)):
             attr = getattr(args, arg)
-            file.write("{} = {}\n".format(arg, attr))
+            file.write('{} = {}\n'.format(arg, attr))
     if args.config is not None:
-        f = os.path.join(basedir, expname, "config.txt")
-        with open(f, "w") as file:
-            file.write(open(args.config, "r").read())
+        f = os.path.join(basedir, expname, 'config.txt')
+        with open(f, 'w') as file:
+            file.write(open(args.config, 'r').read())
 
     # Create nerf model
-    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(
-        args
-    )
+    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer, optimizer2 = create_nerf(args)
 
     bds_dict = {
         "near": near,
@@ -646,81 +286,62 @@ def train():
     render_kwargs_test.update(bds_dict)
 
     N_iters = args.n_iters
-
     print("Begin")
     print("TRAIN views are", i_train)
     print("TEST views are", i_test)
     print("VAL views are", i_val)
 
-    # Summary writers
-    # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
+   # Losses
+    ssim_weight = args.ssim_lambda
+    l2_weight = 1. - ssim_weight
+    ssim_loss = SSIMLoss(spatial_dims=2, data_range=1.0, kernel_type='gaussian', win_size=args.ssim_filter_size, k1=0.01, k2=0.1)
 
     start = start + 1
     for i in trange(start, N_iters + 1):
         time0 = time.time()
 
-        img_i = np.random.choice(i_train)
+        img_i = np.random.choice(i_train) # Why? This does not guarantee that all images are used
         target = torch.transpose(torch.tensor(images[img_i]), 0, 1).to(device)
 
+        if img_i < 4 or img_i > len(i_train + 1) - 4: # Why?
+            continue
+
+        target = torch.Tensor(target).to(device).unsqueeze(0).unsqueeze(0)
         pose = torch.from_numpy(poses[img_i, :3, :4]).to(device)
-        ssim_weight = args.ssim_lambda
-        l2_weight = 1.0 - ssim_weight
-
-        rays_o, rays_d = get_rays_us_linear(H, W, sw, sh, pose)  # (H, W, 3), (H, W, 3)
-
-        batch_rays = torch.stack([rays_o, rays_d], 0)  # (2, H*W, 3)
-
-        loss = {}
 
         #####  Core optimization loop  #####
-
         rendering_output = render_us(
-            H,
-            W,
-            sw,
-            sh,
-            chunk=args.chunk,
-            c2w=pose,
-            rays=batch_rays,
-            **render_kwargs_train,
-        )
-
-        output_image = rendering_output["intensity_map"]
+                H, W, sw, sh, c2w=pose, chunk=args.chunk,
+                retraw=True, **render_kwargs_train)
+        output_image = rendering_output['intensity_map']
+        if i == args.r_warm_up_it:
+            optimizer = optimizer2
+            print("Second stage")
 
         optimizer.zero_grad()
+        loss = {}
 
-        if args.loss == "l2":
-            l2_intensity_loss = img2mse(output_image, target)
-            loss["l2"] = (1.0, l2_intensity_loss)
-        elif args.loss == "ssim":
-            raise
+        if args.loss == 'l2':
+                l2_intensity_loss = img2mse(output_image, target)
+                loss["l2"] = (1., l2_intensity_loss)
+        elif args.loss == 'ssim':
+                ssim_intensity_loss = ssim_loss(output_image, target)
+                loss["ssim"] = (ssim_weight, ssim_intensity_loss)
+                l2_intensity_loss = img2mse(output_image, target)
+                loss["l2"] = (l2_weight, l2_intensity_loss)
 
-        # Calculate border loss
-        if args.border_lambda > 0.0:
-            evident_borders = (
-                torch.tensor(
-                    get_borders(
-                        target.detach().cpu().numpy(),
-                        niter=10,
-                        kappa=0.1,
-                        lambda_=0.1,
-                        eps=1e-8,
-                    )
-                )
-                .float()
-                .to(device)
-            )
-            pred_border_indicator = rendering_output["border_indicator"]
+        total_loss = 0.
+        for loss_value in loss.values():
+            tmp = loss_value[0] * loss_value[1]
+            total_loss += tmp
 
-            loss["border"] = (
-                args.border_lambda,
-                torch.mean(torch.abs(pred_border_indicator - evident_borders)),
-            )
+        if type(total_loss) != torch.Tensor:
+            raise ValueError("Loss is not a tensor: Problem with loss calculation")
 
-        total_loss = sum(loss[k][0] * loss[k][1] for k in loss)
-        total_loss.backward()  # type: ignore
-
+        total_loss.backward()
         optimizer.step()
+
+        dt = time.time()-time0
 
         # NOTE: IMPORTANT!
         ###   update learning rate   ###
@@ -762,11 +383,6 @@ def train():
             plt.title("Target")
             plt.imshow(target.detach().cpu().numpy())
 
-            if args.border_lambda > 0.0:
-                plt.subplot(4, 4, 15)
-                plt.title("Evident borders")
-                plt.imshow(evident_borders.detach().cpu().numpy())
-
             plt.savefig(
                 os.path.join(rendering_path, "{:08d}.png".format(i+1)),
                 bbox_inches="tight",
@@ -774,9 +390,6 @@ def train():
             )
             plt.close()
 
-        # python run_ultra_nerf.py --config conf_us.txt --n_iters 200000 --i_print 1000
-
-        # Rest is logging
         if (i+1) % args.i_weights == 0:
             path = os.path.join(basedir, expname, "{:06d}.tar".format(i+1))
             torch.save(
@@ -793,5 +406,5 @@ def train():
 
 
 if __name__ == "__main__":
-
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
     train()

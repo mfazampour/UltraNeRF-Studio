@@ -11,13 +11,8 @@ from tqdm import trange
 
 from evident_border import get_borders
 from load_us import load_us_data
-from run_ultranerf_helpers import (
-    BARF,
-    PoseRefine,
-    get_embedder,
-    get_rays_us_linear,
-    img2mse,
-)
+from run_ultranerf_helpers import (BARF, PoseRefine, get_embedder,
+                                   get_rays_us_linear, img2mse)
 
 torch.cuda.set_per_process_memory_fraction(0.8)
 

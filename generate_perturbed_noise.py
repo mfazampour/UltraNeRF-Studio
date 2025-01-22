@@ -1,6 +1,7 @@
 import argparse
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
@@ -8,7 +9,6 @@ from PIL import Image
 from camera import Lie, Pose
 from test_utils import visualize_poses
 
-import matplotlib.pyplot as plt
 
 def descale_poses(poses, H, W, probe_depth, probe_width):
 

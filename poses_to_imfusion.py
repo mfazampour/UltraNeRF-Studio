@@ -1,10 +1,9 @@
 import argparse
-import numpy as np
-
 import os
-from PIL import Image
-import nibabel as nib
 
+import nibabel as nib
+import numpy as np
+from PIL import Image
 
 if __name__ == "__main__":
 
