@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from model import NeRF
+from rendering import render_rays_us
+
 # Misc
 img2mse = lambda x, y: torch.mean((x - y) ** 2)
 mse2psnr = lambda x: -10.0 * torch.log(x) / torch.log(torch.Tensor([10.0]))
@@ -195,20 +198,11 @@ def create_nerf(args):
     """
     embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
 
-    input_ch_views = 0
     output_ch = args.output_ch
     skips = [4]
     model = NeRF(D=args.netdepth, W=args.netwidth,
-                 input_ch=input_ch, output_ch=output_ch, skips=skips,
-                 input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+                 input_ch=input_ch, output_ch=output_ch, skips=skips)
     grad_vars = list(model.parameters())
-
-    # model_fine = None
-    # if args.N_importance > 0:
-    #     model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
-    #                       input_ch=input_ch, output_ch=output_ch, skips=skips,
-    #                       input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
-    #     grad_vars += list(model_fine.parameters())
 
     network_query_fn = lambda inputs, network_fn : run_network(inputs, network_fn,
                                                                 embed_fn=embed_fn,
@@ -241,8 +235,6 @@ def create_nerf(args):
 
         # Load model
         model.load_state_dict(ckpt['network_fn_state_dict'])
-        # if model_fine is not None:
-        #     model_fine.load_state_dict(ckpt['network_fine_state_dict'])
 
     ##########################
 

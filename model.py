@@ -10,14 +10,13 @@ from camera import Lie, Pose
 
 class NeRF(nn.Module):
     def __init__(
-        self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=6, skips=[4]
+        self, D=8, W=256, input_ch=3, output_ch=6, skips=[4]
     ):
         """ """
         super(NeRF, self).__init__()
         self.D = D
         self.W = W
         self.input_ch = input_ch
-        self.input_ch_views = input_ch_views
         self.skips = skips
 
         self.pts_linears = nn.ModuleList(
@@ -28,22 +27,19 @@ class NeRF(nn.Module):
             ]
         )
 
-        ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
-        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W, W // 2)])
-
-        ### Implementation according to the paper
-        # self.views_linears = nn.ModuleList(
-        #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
+        for l in self.pts_linears:
+            nn.init.uniform_(l.weight, a=-0.05, b=0.05)
+            nn.init.uniform_(l.bias, a=-0.05, b=0.05)
 
         self.output_linear = nn.Linear(W, output_ch)
+        nn.init.uniform_(self.output_linear.weight, a=-0.05, b=0.05)
+        nn.init.uniform_(self.output_linear.bias, a=-0.05, b=0.05)
 
     def forward(self, x):
-        input_pts, input_views = torch.split(
-            x, [self.input_ch, self.input_ch_views], dim=-1
-        )
+        input_pts = x
         h = input_pts
         for i, l in enumerate(self.pts_linears):
-            h = self.pts_linears[i](h)
+            h = l(h)
             h = F.relu(h)
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
@@ -126,7 +122,6 @@ class BARF(nn.Module):
         outputs = self.output_linear(h)
 
         return outputs
-
 
 class PoseRefine(nn.Module):
     def __init__(self, poses=Optional[torch.Tensor], mode=Optional[str]):

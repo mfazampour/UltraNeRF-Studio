@@ -5,15 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
+from monai.losses.ssim_loss import SSIMLoss
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import trange
 
 from load_us import load_us_data
-from nerf_utils import img2mse, create_nerf
+from nerf_utils import create_nerf, img2mse
 from rendering import render_us
-
-from monai.losses.ssim_loss import SSIMLoss
-
 
 torch.cuda.set_per_process_memory_fraction(0.8)
 

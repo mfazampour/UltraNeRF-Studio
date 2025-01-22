@@ -6,9 +6,10 @@ import torch
 import torch.nn.functional as F
 from torch.distributions.relaxed_bernoulli import RelaxedBernoulli
 
+from nerf_utils import batchify_rays, get_rays_us_linear
 from rendering_utils.denoising import wavelet_decomposition
 from rendering_utils.reflection import calculate_reflection_coefficient
-from nerf_utils import get_rays_us_linear, batchify_rays
+
 
 def cumsum_exclusive(tensor: torch.Tensor) -> torch.Tensor:
     r"""Mimick functionality of tf.math.cumsum(..., exclusive=True), as it isn't available in PyTorch.
@@ -525,7 +526,7 @@ def render_us(H, W, sw, sh, chunk=1024 * 32, rays=None, c2w=None, near=0., far=5
 
     rays_o = None
     rays_d = None
-    
+
     if c2w is not None:
         # Special case to render full image
         for c in c2w:
@@ -556,3 +557,60 @@ def render_us(H, W, sw, sh, chunk=1024 * 32, rays=None, c2w=None, near=0., far=5
     #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
     #     all_ret[k] = all_ret[k].reshape(k_sh)
     return all_ret
+
+def render_rays_us(ray_batch, network_fn, network_query_fn, N_samples, retraw=False, lindisp=False, args=None):
+    """Volumetric rendering.
+
+    Args:
+    ray_batch: Tensor of shape [batch_size, ...]. We define rays and do not sample.
+
+    Returns:
+    Rendered outputs.
+    """
+
+    def raw2outputs(raw, z_vals):
+        """Transforms model's predictions to semantically meaningful values."""
+        ret = render_method_ultra_nerf(raw)  # Assuming render_method_3 is defined elsewhere
+        # ret = rendering(raw, z_vals)
+        return ret
+
+    ###############################
+    # Batch size
+    N_rays = ray_batch.shape[0]
+
+    # Extract ray origin, direction
+    rays_o, rays_d = ray_batch[:, 0:3], ray_batch[:, 3:6]  # [N_rays, 3] each
+
+    # Extract unit-normalized viewing direction
+    viewdirs = ray_batch[:, -3:] if ray_batch.shape[-1] > 8 else None
+
+    # Extract lower, upper bound for ray distance
+    bounds = ray_batch[..., 6:8].reshape(-1, 1, 2)
+    near, far = bounds[..., 0], bounds[..., 1]  # [-1,1]
+
+    # Decide where to sample along each ray
+    t_vals = torch.linspace(0., 1., N_samples)
+    if not lindisp:
+        z_vals = near * (1. - t_vals) + far * t_vals
+    else:
+        z_vals = 1. / (1. / near * (1. - t_vals) + 1. / far * t_vals)
+    z_vals = z_vals.expand(N_rays, N_samples)
+
+    # Points in space to evaluate model at
+    origin = rays_o.unsqueeze(-2)
+    step = rays_d.unsqueeze(-2) * z_vals.unsqueeze(-1)
+
+    pts = step + origin
+
+    # Evaluate model at each point
+    raw = network_query_fn(pts, network_fn)  # [N_rays, N_samples , 5]
+    ret = raw2outputs(raw, z_vals)
+
+    # if retraw:
+    #     ret['raw'] = raw
+
+    # In PyTorch, there is no direct equivalent of tf.debugging.check_numerics
+    # You might want to implement a custom check or use torch.isnan or torch.isinf
+    # for checking invalid numerics.
+
+    return ret

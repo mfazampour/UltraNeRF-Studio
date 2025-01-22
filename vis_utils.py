@@ -1,6 +1,8 @@
 import io
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def show_colorbar(image, cmap="rainbow"):
     figure = plt.figure(figsize=(5, 5))
