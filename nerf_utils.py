@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from model import NeRF
+from model import NeRF, BARF, PoseRefine
 from rendering import render_rays_us
 
 # Misc
@@ -170,9 +170,21 @@ def batchify(fn, chunk):
 def run_network(inputs, fn, embed_fn, netchunk=1024 * 64):
     """Prepares inputs and applies network 'fn'."""
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
+
     embedded = embed_fn(inputs_flat)
 
     outputs_flat = batchify(fn, netchunk)(embedded)
+    outputs = torch.reshape(
+        outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]]
+    )
+    return outputs
+
+
+def run_barf_network(inputs, fn, netchunk=1024 * 64):
+    """Prepares inputs and applies network 'fn'."""
+    inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
+
+    outputs_flat = batchify(fn, netchunk)(inputs_flat)
     outputs = torch.reshape(
         outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]]
     )
@@ -268,6 +280,90 @@ def create_nerf(args, device, mode="train"):
     return render_kwargs_train, render_kwargs_test, start, optimizer
 
 
+def create_barf(poses: torch.Tensor, args, device, mode="train"):
+    """Instantiate BARF's MLP model."""
+
+    output_ch = args.output_ch
+    skips = [4]
+    input_ch = 3
+
+    model = BARF(
+        D=args.netdepth,
+        W=args.netwidth,
+        input_ch=input_ch,
+        output_ch=output_ch,
+        skips=skips,
+        L=args.L,
+    ).to(device)
+
+    pose_refine = PoseRefine(poses=poses, mode=mode).to(device)
+
+    network_query_fn = lambda inputs, network_fn: run_barf_network(
+        inputs, network_fn, netchunk=args.netchunk
+    )
+
+    # Create optimizer
+    optimizer = torch.optim.Adam(
+        params=model.parameters(), lr=args.lrate, betas=(0.9, 0.999)
+    )
+
+    pose_optim = torch.optim.Adam(pose_refine.parameters(), args.pose_lr)
+    gamma = (args.pose_lr_end / args.pose_lr) ** (1.0 / args.n_iters)
+    pose_sched = torch.optim.lr_scheduler.ExponentialLR(pose_optim, gamma)
+
+    start = 0
+    basedir = args.basedir
+    expname = args.expname
+
+    ##########################
+
+    # Load checkpoints
+    if args.ft_path is not None and args.ft_path != "None":
+        ckpts = [args.ft_path]
+    else:
+        ckpts = [
+            os.path.join(basedir, expname, f)
+            for f in sorted(os.listdir(os.path.join(basedir, expname)))
+            if "tar" in f
+        ]
+
+    print("Found ckpts", ckpts)
+    if len(ckpts) > 0 and not args.no_reload:
+        ckpt_path = ckpts[-1]
+        print("Reloading from", ckpt_path)
+        ckpt = torch.load(ckpt_path)
+
+        start = ckpt["global_step"]
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        pose_optim.load_state_dict(ckpt["pose_optim_state_dict"])
+        pose_sched.load_state_dict(ckpt["pose_sched_state_dict"])
+
+        # Load model
+        model.load_state_dict(ckpt["network_fn_state_dict"])
+        pose_refine.load_state_dict(ckpt["pose_refine_state_dict"])
+
+    ##########################
+
+    render_kwargs_train = {
+        "network_query_fn": network_query_fn,
+        "N_samples": args.N_samples,
+        "network_fn": model,
+        "pose_refine": pose_refine,
+        "ckpt": ckpt if len(ckpts) > 0 else None,
+    }
+
+    render_kwargs_test = {k: render_kwargs_train[k] for k in render_kwargs_train}
+
+    return (
+        render_kwargs_train,
+        render_kwargs_test,
+        start,
+        optimizer,
+        pose_optim,
+        pose_sched,
+    )
+
+
 def render_us(
     H,
     W,
@@ -283,7 +379,8 @@ def render_us(
     """Render rays."""
 
     # assert rays is not None or c2w is not None
-    assert rays is not None or c2w is not None
+    if rays is None and c2w is None:
+        raise ValueError("rays and c2w are both None")
 
     rays_o = None
     rays_d = None
@@ -291,15 +388,21 @@ def render_us(
     if c2w is not None:
         # Special case to render full image
         for c in c2w:
-            if rays_o is None:
+            if rays_o is None and rays_d is None:
                 rays_o, rays_d = get_rays_us_linear(H, W, sw, sh, c)
             else:
                 o, d = get_rays_us_linear(H, W, sw, sh, c)
-                rays_o = torch.concatenate((rays_o, o))
-                rays_d = torch.concatenate((rays_d, d))
+                rays_o = torch.concatenate((rays_o, o))  # type: ignore
+                rays_d = torch.concatenate((rays_d, d))  # type: ignore
     else:
         # Use provided ray batch
         rays_o, rays_d = rays
+
+    if rays_o is None:
+        raise ValueError("rays_o is None")
+    if rays_d is None:
+        raise ValueError("rays_d is None")
+
     sh = rays_d.shape  # [..., 3]
 
     # Create ray batch

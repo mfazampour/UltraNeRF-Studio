@@ -53,8 +53,8 @@ if __name__ == "__main__":
     far = args.probe_depth * 0.001
 
     # Create nerf model
-    _, render_kwargs_test, start, optimizer = (
-        run_nerf_ultrasound.create_nerf(args, device, mode="test")
+    _, render_kwargs_test, start, optimizer = run_nerf_ultrasound.create_nerf(
+        args, device, mode="test"
     )
     bds_dict = {
         "near": torch.tensor(near, dtype=torch.float32, device=device),

@@ -1,0 +1,18 @@
+expname = liver_ssim_barf
+loss = ssim
+basedir = logs
+datadir = G:\ultrasound_data\original\liver
+dataset_type = us
+output_ch = 5
+
+N_samples = 516
+n_iters = 200000
+
+i_embed = 6
+probe_depth = 140
+probe_width = 80
+
+L=8
+c2f=(0.1, 0.5)
+pose_lr=1.e-5
+pose_lr_end=1.e-6

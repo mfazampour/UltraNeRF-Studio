@@ -124,7 +124,7 @@ class BARF(nn.Module):
 
 
 class PoseRefine(nn.Module):
-    def __init__(self, poses=Optional[torch.Tensor], mode=Optional[str]):
+    def __init__(self, poses: torch.Tensor, mode: str):
         super(PoseRefine, self).__init__()
         self.poses = poses
         self.mode = mode
@@ -135,9 +135,6 @@ class PoseRefine(nn.Module):
             self.se3_refine = nn.Embedding(poses.shape[0], 6)
             torch.nn.init.zeros_(self.se3_refine.weight)
 
-    def set_poses(self, poses: torch.Tensor):
-        self.poses = poses
-
     def get_pose(self, idx: torch.Tensor):
 
         if self.poses is None:
@@ -147,6 +144,10 @@ class PoseRefine(nn.Module):
             se3_refine = self.se3_refine.weight[idx]
             pose = self.poses[idx].to(se3_refine.device)
             pose_refine = self.lie.se3_to_SE3(se3_refine)
+
+            # Multiply translation by 0.001 to scale it down (original scale is in mm)
+            pose_refine[:, 3] *= 0.001
+
             pose = self.pose.compose([pose_refine, pose])
 
             return pose
