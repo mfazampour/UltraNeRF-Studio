@@ -516,7 +516,9 @@ def train():
         else:
             pose_path = None
 
-        images, poses, i_test = load_us_data(args.datadir, confmap=args.confmap, pose_path=pose_path)
+        images, poses, i_test = load_us_data(
+            args.datadir, confmap=args.confmap, pose_path=pose_path
+        )
 
         if not isinstance(i_test, list):
             i_test = [i_test]
@@ -709,12 +711,10 @@ def train():
             for k, v in loss.items():
                 writer.add_scalar(f"Loss/{k}", v[1].item(), i)
             writer.add_scalar("Learning rate", new_lrate, i)
-            writer.add_scalar(
-                "Pose learning rate", pose_optim.param_groups[0]["lr"], i
-            )
+            writer.add_scalar("Pose learning rate", pose_optim.param_groups[0]["lr"], i)
 
         dt = time.time() - time0
-        if (i+1) % args.i_print == 0:
+        if (i + 1) % args.i_print == 0:
 
             rendering_path = os.path.join(basedir, expname, "train_rendering")
             os.makedirs(
@@ -744,15 +744,15 @@ def train():
                 plt.imshow(evident_borders.detach().cpu().numpy())
 
             plt.savefig(
-                os.path.join(rendering_path, "{:08d}.png".format((i+1))),
+                os.path.join(rendering_path, "{:08d}.png".format((i + 1))),
                 bbox_inches="tight",
                 dpi=200,
             )
             plt.close()
 
         # Rest is logging
-        if (i+1) % args.i_weights == 0:
-            path = os.path.join(basedir, expname, "{:06d}.tar".format((i+1)))
+        if (i + 1) % args.i_weights == 0:
+            path = os.path.join(basedir, expname, "{:06d}.tar".format((i + 1)))
             torch.save(
                 {
                     "global_step": i,
@@ -767,7 +767,6 @@ def train():
                 path,
             )
             # print('Saved checkpoints at', path)
-
 
 
 if __name__ == "__main__":

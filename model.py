@@ -9,9 +9,7 @@ from camera import Lie, Pose
 
 
 class NeRF(nn.Module):
-    def __init__(
-        self, D=8, W=256, input_ch=3, output_ch=6, skips=[4]
-    ):
+    def __init__(self, D=8, W=256, input_ch=3, output_ch=6, skips=[4]):
         """ """
         super(NeRF, self).__init__()
         self.D = D
@@ -47,6 +45,7 @@ class NeRF(nn.Module):
         outputs = self.output_linear(h)
 
         return outputs
+
 
 class BARF(nn.Module):
     def __init__(self, D=8, W=256, input_ch=3, output_ch=6, skips=[4], L=0, c2f=None):
@@ -122,6 +121,7 @@ class BARF(nn.Module):
         outputs = self.output_linear(h)
 
         return outputs
+
 
 class PoseRefine(nn.Module):
     def __init__(self, poses=Optional[torch.Tensor], mode=Optional[str]):

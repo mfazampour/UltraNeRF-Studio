@@ -27,7 +27,7 @@ def compute_orientation(image):
     sobel_y = sobel_y.to(image.device)
 
     # Compute gradients#
-    padded_image = F.pad(image, pad=(1, 1, 1, 1), mode='reflect')
+    padded_image = F.pad(image, pad=(1, 1, 1, 1), mode="reflect")
     G_x = F.conv2d(padded_image, sobel_x)
     G_y = F.conv2d(padded_image, sobel_y)
 
@@ -51,34 +51,39 @@ def calculate_reflection_coefficient(acoustic_impedance_map):
     # plt.imshow(torch.cos(orientation_map)[0, 0].cpu().numpy(), cmap="gray")
     # plt.show()
 
-    shifted_acoustic_impedance_map = torch.roll(acoustic_impedance_map, shifts=-1, dims=2)
+    shifted_acoustic_impedance_map = torch.roll(
+        acoustic_impedance_map, shifts=-1, dims=2
+    )
     acoustic_impedance_map_wo_last_row = acoustic_impedance_map[:, :, :-1, :]
     shifted_acoustic_impedance_map = shifted_acoustic_impedance_map[:, :, :-1, :]
-    
+
     # Difference between the two maps
-    acoustic_impedance_map_diff = (shifted_acoustic_impedance_map - acoustic_impedance_map_wo_last_row) ** 2 / (shifted_acoustic_impedance_map + acoustic_impedance_map_wo_last_row + 1e-12)
+    acoustic_impedance_map_diff = (
+        shifted_acoustic_impedance_map - acoustic_impedance_map_wo_last_row
+    ) ** 2 / (
+        shifted_acoustic_impedance_map + acoustic_impedance_map_wo_last_row + 1e-12
+    )
 
     assert torch.isnan(acoustic_impedance_map_diff).any() == False
 
     acoustic_impedance_map_diff = torch.nn.functional.pad(
-        acoustic_impedance_map_diff, (0, 0, 0, 1), "constant", 0.0)
-    
+        acoustic_impedance_map_diff, (0, 0, 0, 1), "constant", 0.0
+    )
+
     # plt.imshow(acoustic_impedance_map_diff[0, 0].cpu().numpy(), cmap="gray")
     # plt.show()
 
     reflection_coefficient = acoustic_impedance_map_diff
     # reflection_coefficient = acoustic_impedance_map_diff * torch.cos(orientation_map) ** 2
-    
-        
+
     # plt.imshow(reflection_coefficient[0, 0].cpu().numpy(), cmap="gray")
     # plt.show()
 
     return reflection_coefficient
 
 
+if __name__ == "__main__":
 
-if __name__ == '__main__':
-    
     # create image with 10 x 10 pixels
     # 1.0 is the acoustic impedance of water
     # 1.5 is the acoustic impedance of the object
@@ -88,7 +93,6 @@ if __name__ == '__main__':
     diagonal = torch.diag(torch.ones(10))[None, None, ...]
     vertical = torch.zeros((1, 1, 10, 10))
     vertical[:, :, :, 5:] = 1.0
-
 
     image = torch.cat([image_ones, image_zeros, diagonal, vertical], dim=2)
 

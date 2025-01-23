@@ -6,14 +6,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from monai.losses.ssim_loss import SSIMLoss
-from torch.utils.tensorboard.writer import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
 from load_us import load_us_data
-from nerf_utils import create_nerf, img2mse
-from rendering import render_us
+from nerf_utils import create_nerf, img2mse, render_us
 
-torch.cuda.set_per_process_memory_fraction(0.8)
+torch.cuda.set_per_process_memory_fraction(0.95)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,10 +43,13 @@ def config_parser():
     parser.add_argument("--probe_width", type=int, default=80)
     parser.add_argument("--output_ch", type=int, default=5)
 
-    parser.add_argument("--border_lambda", type=float, default=0.0)
     parser.add_argument("--tensorboard", action="store_true")
     parser.add_argument("--confmap", type=bool, default=False)
     parser.add_argument("--pose_path", type=str, default=None)
+
+    parser.add_argument(
+        "--random_seed", type=int, default=-1
+    )  # Set to 0 for deterministic behaviour
 
     parser.add_argument("--netdepth", type=int, default=8, help="layers in network")
     parser.add_argument("--netwidth", type=int, default=128, help="channels per layer")
@@ -85,14 +87,7 @@ def config_parser():
         default=4096 * 16,
         help="number of pts sent through network in parallel, decrease if running out of memory",
     )
-    parser.add_argument(
-        "--no_batching",
-        action="store_true",
-        help="only take random rays from 1 image at a time",
-    )
-    parser.add_argument(
-        "--no_reload", action="store_true", help="do not reload weights from saved ckpt"
-    )
+
     parser.add_argument(
         "--ft_path",
         type=str,
@@ -154,18 +149,6 @@ def config_parser():
     )
 
     # training options
-    parser.add_argument(
-        "--precrop_iters",
-        type=int,
-        default=0,
-        help="number of steps to train on central crops",
-    )
-    parser.add_argument(
-        "--precrop_frac",
-        type=float,
-        default=0.5,
-        help="fraction of img taken for central crops",
-    )
 
     # dataset options
     parser.add_argument("--dataset_type", type=str, default="us", help="options: us")
@@ -189,21 +172,6 @@ def config_parser():
     parser.add_argument(
         "--i_weights", type=int, default=10000, help="frequency of weight ckpt saving"
     )
-    parser.add_argument(
-        "--i_testset", type=int, default=5000000, help="frequency of testset saving"
-    )
-    parser.add_argument(
-        "--i_video",
-        type=int,
-        default=5000000,
-        help="frequency of render_poses video saving",
-    )
-    parser.add_argument(
-        "--log_compression",
-        action="store_true",
-        help="use lossy compression for tensorboard logs",
-    )
-
     return parser
 
 
@@ -213,14 +181,16 @@ def train():
     args = parser.parse_args()
 
     if args.random_seed == 0:
-        print('Setting deterministic behaviour')
+        print("Setting deterministic behaviour")
         random_seed = 42
         np.random.seed(random_seed)
         torch.manual_seed(random_seed)
 
-
     if args.dataset_type == "us":
-        images, poses, i_test = load_us_data(args.datadir, confmap=args.confmap, pose_path=args.pose_path)
+        # IT CONVERTS THE POSE TRANSLATION FROM MM TO M ALREADY!!!
+        images, poses, i_test = load_us_data(
+            args.datadir, confmap=args.confmap, pose_path=args.pose_path
+        )
 
         if not isinstance(i_test, list):
             i_test = [i_test]
@@ -263,18 +233,20 @@ def train():
 
     # Create log dir and copy the config file
     os.makedirs(os.path.join(basedir, expname), exist_ok=True)
-    f = os.path.join(basedir, expname, 'args.txt')
-    with open(f, 'w') as file:
+    f = os.path.join(basedir, expname, "args.txt")
+    with open(f, "w") as file:
         for arg in sorted(vars(args)):
             attr = getattr(args, arg)
-            file.write('{} = {}\n'.format(arg, attr))
+            file.write("{} = {}\n".format(arg, attr))
     if args.config is not None:
-        f = os.path.join(basedir, expname, 'config.txt')
-        with open(f, 'w') as file:
-            file.write(open(args.config, 'r').read())
+        f = os.path.join(basedir, expname, "config.txt")
+        with open(f, "w") as file:
+            file.write(open(args.config, "r").read())
 
     # Create nerf model
-    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer, optimizer2 = create_nerf(args)
+    render_kwargs_train, render_kwargs_test, start, optimizer = create_nerf(
+        args, device=device
+    )
 
     bds_dict = {
         "near": near,
@@ -289,46 +261,51 @@ def train():
     print("TEST views are", i_test)
     print("VAL views are", i_val)
 
-   # Losses
+    # Losses
     ssim_weight = args.ssim_lambda
-    l2_weight = 1. - ssim_weight
-    ssim_loss = SSIMLoss(spatial_dims=2, data_range=1.0, kernel_type='gaussian', win_size=args.ssim_filter_size, k1=0.01, k2=0.1)
+    l2_weight = 1.0 - ssim_weight
+    ssim_loss = SSIMLoss(
+        spatial_dims=2,
+        data_range=1.0,
+        kernel_type="gaussian",
+        win_size=args.ssim_filter_size,
+        k1=0.01,
+        k2=0.1,
+    )
 
     start = start + 1
     for i in trange(start, N_iters + 1):
         time0 = time.time()
 
-        img_i = np.random.choice(i_train) # Why? This does not guarantee that all images are used
-        target = torch.transpose(torch.tensor(images[img_i]), 0, 1).to(device)
+        img_i = np.random.choice(
+            i_train
+        )  # Why? This does not guarantee that all images are used
 
-        if img_i < 4 or img_i > len(i_train + 1) - 4: # Why?
+        if img_i < 4 or img_i > len(i_train + 1) - 4:  # Why?
             continue
 
-        target = torch.Tensor(target).to(device).unsqueeze(0).unsqueeze(0)
-        pose = torch.from_numpy(poses[img_i, :3, :4]).to(device)
+        target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+        pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
 
         #####  Core optimization loop  #####
         rendering_output = render_us(
-                H, W, sw, sh, c2w=pose, chunk=args.chunk,
-                retraw=True, **render_kwargs_train)
-        output_image = rendering_output['intensity_map']
-        if i == args.r_warm_up_it:
-            optimizer = optimizer2
-            print("Second stage")
+            H, W, sw, sh, c2w=pose, chunk=args.chunk, retraw=True, **render_kwargs_train
+        )
+        output_image = rendering_output["intensity_map"]
 
         optimizer.zero_grad()
         loss = {}
 
-        if args.loss == 'l2':
-                l2_intensity_loss = img2mse(output_image, target)
-                loss["l2"] = (1., l2_intensity_loss)
-        elif args.loss == 'ssim':
-                ssim_intensity_loss = ssim_loss(output_image, target)
-                loss["ssim"] = (ssim_weight, ssim_intensity_loss)
-                l2_intensity_loss = img2mse(output_image, target)
-                loss["l2"] = (l2_weight, l2_intensity_loss)
+        if args.loss == "l2":
+            l2_intensity_loss = img2mse(output_image, target)
+            loss["l2"] = (1.0, l2_intensity_loss)
+        elif args.loss == "ssim":
+            ssim_intensity_loss = ssim_loss(output_image, target)
+            loss["ssim"] = (ssim_weight, ssim_intensity_loss)
+            l2_intensity_loss = img2mse(output_image, target)
+            loss["l2"] = (l2_weight, l2_intensity_loss)
 
-        total_loss = 0.
+        total_loss = 0.0
         for loss_value in loss.values():
             tmp = loss_value[0] * loss_value[1]
             total_loss += tmp
@@ -339,7 +316,7 @@ def train():
         total_loss.backward()
         optimizer.step()
 
-        dt = time.time()-time0
+        dt = time.time() - time0
 
         # NOTE: IMPORTANT!
         ###   update learning rate   ###
@@ -357,7 +334,7 @@ def train():
             writer.add_scalar("Learning rate", new_lrate, i)
 
         dt = time.time() - time0
-        if (i+1) % args.i_print == 0:
+        if (i + 1) % args.i_print == 0:
 
             rendering_path = os.path.join(basedir, expname, "train_rendering")
             os.makedirs(
@@ -370,26 +347,26 @@ def train():
             )
             print(detailed_loss_string)
 
-            plt.figure(figsize=(16, 10))
+            plt.figure(figsize=(16, 8))
             for j, m in enumerate(rendering_output):
 
-                plt.subplot(4, 4, j + 1)
+                plt.subplot(3, 4, j + 1)
                 plt.title(m)
-                plt.imshow(rendering_output[m].detach().cpu().numpy())
+                plt.imshow(rendering_output[m].detach().cpu().numpy()[0, 0].T)
 
-            plt.subplot(4, 4, 14)
+            plt.subplot(3, 4, 12)
             plt.title("Target")
-            plt.imshow(target.detach().cpu().numpy())
+            plt.imshow(target.detach().cpu().numpy()[0, 0].T)
 
             plt.savefig(
-                os.path.join(rendering_path, "{:08d}.png".format(i+1)),
+                os.path.join(rendering_path, "{:08d}.png".format(i + 1)),
                 bbox_inches="tight",
                 dpi=200,
             )
             plt.close()
 
-        if (i+1) % args.i_weights == 0:
-            path = os.path.join(basedir, expname, "{:06d}.tar".format(i+1))
+        if (i + 1) % args.i_weights == 0:
+            path = os.path.join(basedir, expname, "{:06d}.tar".format(i + 1))
             torch.save(
                 {
                     "global_step": i,
@@ -404,5 +381,6 @@ def train():
 
 
 if __name__ == "__main__":
-    torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    torch.set_default_dtype(torch.float32)
+    torch.set_default_device("cuda")
     train()

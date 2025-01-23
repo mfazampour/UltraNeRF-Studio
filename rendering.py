@@ -1,12 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import ptwt
-import pywt
 import torch
 import torch.nn.functional as F
 from torch.distributions.relaxed_bernoulli import RelaxedBernoulli
 
-from nerf_utils import batchify_rays, get_rays_us_linear
 from rendering_utils.denoising import wavelet_decomposition
 from rendering_utils.reflection import calculate_reflection_coefficient
 
@@ -23,14 +20,14 @@ def cumsum_exclusive(tensor: torch.Tensor) -> torch.Tensor:
         tf.math.cumsum(..., exclusive=True) (see `tf.math.cumsum` for details).
     """
     # TESTED
-    # Only works for the last dimension (dim=-1) -> Why? 
+    # Only works for the last dimension (dim=-1) -> Why?
     dim = -1
     # Compute regular cumsum first (this is equivalent to `tf.math.cumsum(..., exclusive=False)`).
     cumsum = torch.cumsum(tensor, dim)
     # "Roll" the elements along dimension 'dim' by 1 element.
     cumsum = torch.roll(cumsum, 1, dim)
     # Replace the first element by "0" as this is what tf.cumsum(..., exclusive=True) does.
-    cumsum[..., 0] = 0.
+    cumsum[..., 0] = 0.0
 
     return cumsum
 
@@ -81,16 +78,15 @@ def gaussian_kernel_3d(size: int, mean: float, std: float):
     return gauss_kernel_3d
 
 
-g_kernel = gaussian_kernel(3, 0.0, 1.0)
-g_kernel = torch.tensor(g_kernel, dtype=torch.float32).to(device="cuda")
+g_kernel = gaussian_kernel(3, 0.0, 1.0).float().to(device="cuda")
 
 size = 3
 mean = 0.0
 std = 1.0
-g_kernel3D = gaussian_kernel_3d(size, mean, std)
-g_kernel3D = torch.tensor(g_kernel3D, dtype=torch.float32).to(device="cuda")
+g_kernel3D = gaussian_kernel_3d(size, mean, std).float().to(device="cuda")
 
-def rendering(raw_value, FREQUENCY = 8e6, log_compression_scale = 10):
+
+def rendering(raw_value, FREQUENCY=8e6, log_compression_scale=10):
 
     # return {"intensity_map": raw_value[None, None, ..., 0].permute(0, 1, 3, 2)}
     debug = True
@@ -112,18 +108,15 @@ def rendering(raw_value, FREQUENCY = 8e6, log_compression_scale = 10):
     # x = 0.1
     # backscattering_map = acoustic_impedance_map_diff * torch.sigmoid(x - torch.abs(acoustic_impedance_map_diff))
 
-    
-
     # ----------------------------  Rendering ---------------------------- #
 
-    batch_size, C,  W, H = attenuation_map.shape
+    batch_size, C, W, H = attenuation_map.shape
 
     t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
     dists = torch.abs(z_vals[..., :-1] - z_vals[..., 1:])  # dists.shape=(B, W, H-1, 1)
     dists = torch.cat([dists, dists[:, :, -1, None]], dim=-1)  # dists.shape=(B, W, H)
-
 
     # ---------------------------  Attenuation --------------------------- #
 
@@ -136,9 +129,8 @@ def rendering(raw_value, FREQUENCY = 8e6, log_compression_scale = 10):
     attenuation_total = torch.exp(log_attenuation_total)
     # DIFF: Changed cumprod with log cumsum to avoid numerical instability
 
-
     # ---------------------------  Reflection --------------------------- #
-    #assert acoustic impedance map is of type float
+    # assert acoustic impedance map is of type float
     reflection_coeff = calculate_reflection_coefficient(acoustic_impedance_map)
     assert torch.isnan(reflection_coeff).any() == False
     assert reflection_coeff.dtype == torch.float32
@@ -170,7 +162,7 @@ def rendering(raw_value, FREQUENCY = 8e6, log_compression_scale = 10):
     # alpha_amplification = lambda x: torch.log(
     #     torch.tensor(1.0) + amplification_constant * x
     # )
-    intensity_map_pre_amp = (b + r)
+    intensity_map_pre_amp = b + r
     # intensity_map = alpha_amplification(intensity_map_pre_amp)
 
     ret = {
@@ -197,6 +189,7 @@ def rendering(raw_value, FREQUENCY = 8e6, log_compression_scale = 10):
 
     return ret
 
+
 def render_method_3(raw):
     def raw2attention(raw, dists):
         return torch.exp(-raw * dists)
@@ -204,8 +197,8 @@ def render_method_3(raw):
     raw = raw[None, None, ...]
     raw = raw.permute(0, 1, 3, 2, 4)
 
-    batch_size, C,  W, H, maps = raw.shape
-    
+    batch_size, C, W, H, maps = raw.shape
+
     t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
@@ -228,7 +221,7 @@ def render_method_3(raw):
     # reflection_coeff = torch.zeros_like(raw[..., 0])
 
     reflection_coeff = torch.sigmoid(raw[..., 1])
-    reflection_transmission = 1. - reflection_coeff
+    reflection_transmission = 1.0 - reflection_coeff
     # reflection_transmission = raw2reflection(reflection_coeff)
     reflection_transmission = reflection_transmission.permute(0, 1, 3, 2)
     log_reflection_transmission = torch.log(reflection_transmission + 1e-12)
@@ -239,12 +232,16 @@ def render_method_3(raw):
     # BACKSCATTERING
     # density_coeff = torch.sigmoid(raw[..., 2])
     density_coeff = torch.ones_like(reflection_coeff) * 0.75
-    scatter_density_distribution = RelaxedBernoulli(temperature=0.1, probs=density_coeff)
+    scatter_density_distribution = RelaxedBernoulli(
+        temperature=0.1, probs=density_coeff
+    )
     scatterers_density = scatter_density_distribution.sample()
     amplitude = torch.sigmoid(raw[..., 2])
     scatterers_map = scatterers_density * amplitude
 
-    psf_scatter = F.conv2d(scatterers_map, g_kernel[None, None, ...], stride=1, padding="same")
+    psf_scatter = F.conv2d(
+        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+    )
     # psf_scatter = torch.squeeze(psf_scatter)
 
     # Compute remaining intensity at a point n
@@ -255,31 +252,32 @@ def render_method_3(raw):
     r = confidence_maps * reflection_coeff
 
     # Compute the final echo
-    amplification_constant = torch.tensor(3.14)
-    alpha_amplification = lambda x: torch.log(torch.tensor(1.) + amplification_constant * x) * torch.log(torch.tensor(1.) + amplification_constant)
+    amplification_constant = torch.tensor(np.pi)
+    alpha_amplification = lambda x: torch.log(
+        torch.tensor(1.0) + amplification_constant * x
+    ) * torch.log(torch.tensor(1.0) + amplification_constant)
     r_amplified = alpha_amplification(r)
     intensity_map = b + r_amplified
 
     return {
-        'intensity_map': intensity_map,
-        'attenuation_coeff': attenuation_coeff,
-        'reflection_coeff': reflection_coeff,
-        'attenuation_total': attenuation_total,
-        'reflection_total': reflection_total,
-        'scatterers_density': scatterers_density,
-        'scatterers_density_coeff': density_coeff,
-        'scatter_amplitude': amplitude,
-        'b': b,
-        'r': r,
-        'r_amplified': r_amplified,
-        "confidence_maps": confidence_maps
+        "intensity_map": intensity_map,
+        "attenuation_coeff": attenuation_coeff,
+        "reflection_coeff": reflection_coeff,
+        "attenuation_total": attenuation_total,
+        "reflection_total": reflection_total,
+        "scatterers_density": scatterers_density,
+        "scatterers_density_coeff": density_coeff,
+        "scatter_amplitude": amplitude,
+        "b": b,
+        "r": r,
+        "r_amplified": r_amplified,
+        "confidence_maps": confidence_maps,
     }
 
 
 def render_method_ultra_nerf(raw):
     def raw2attention(raw, dists):
         return torch.exp(-raw * dists)
-
 
     raw = raw[None, None, ...]
     raw = raw.permute(0, 1, 3, 2, 4)
@@ -310,7 +308,7 @@ def render_method_ultra_nerf(raw):
     b_prob_dist = RelaxedBernoulli(temperature=0.1, probs=prob_border)
     b_prob = b_prob_dist.sample()
     reflection_coeff = torch.sigmoid(raw[..., 1])
-    reflection_transmission = 1. - reflection_coeff * b_prob
+    reflection_transmission = 1.0 - reflection_coeff * b_prob
     reflection_transmission = reflection_transmission.permute(0, 1, 3, 2)
     log_reflection_transmission = torch.log(reflection_transmission + 1e-12)
     log_reflection_total = cumsum_exclusive(log_reflection_transmission)
@@ -320,12 +318,16 @@ def render_method_ultra_nerf(raw):
     # BACKSCATTERING
     density_coeff = torch.sigmoid(raw[..., 3])
     # density_coeff = torch.ones_like(reflection_coeff) * 0.75
-    scatter_density_distribution = RelaxedBernoulli(temperature=0.1, probs=density_coeff)
+    scatter_density_distribution = RelaxedBernoulli(
+        temperature=0.1, probs=density_coeff
+    )
     scatterers_density = scatter_density_distribution.sample()
     amplitude = torch.sigmoid(raw[..., 4])
     scatterers_map = scatterers_density * amplitude
 
-    psf_scatter = F.conv2d(scatterers_map, g_kernel[None, None, ...], stride=1, padding="same")
+    psf_scatter = F.conv2d(
+        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+    )
     # psf_scatter = torch.squeeze(psf_scatter)
 
     # Compute remaining intensity at a point n
@@ -338,17 +340,17 @@ def render_method_ultra_nerf(raw):
     intensity_map = b + r
 
     return {
-        'intensity_map': intensity_map,
-        'attenuation_coeff': attenuation_coeff,
-        'reflection_coeff': reflection_coeff,
-        'attenuation_total': attenuation_total,
-        'reflection_total': reflection_total,
-        'scatterers_density': scatterers_density,
-        'scatterers_density_coeff': density_coeff,
-        'scatter_amplitude': amplitude,
-        'b': b,
-        'r': r,
-        "confidence_maps": confidence_maps
+        "intensity_map": intensity_map,
+        "attenuation_coeff": attenuation_coeff,
+        "reflection_coeff": reflection_coeff,
+        "attenuation_total": attenuation_total,
+        "reflection_total": reflection_total,
+        "scatterers_density": scatterers_density,
+        "scatterers_density_coeff": density_coeff,
+        "scatter_amplitude": amplitude,
+        "b": b,
+        "r": r,
+        "confidence_maps": confidence_maps,
     }
 
 
@@ -403,12 +405,16 @@ def render_method_cos_theta(raw, d):
     # BACKSCATTERING
     # density_coeff = torch.sigmoid(raw[..., 2])
     density_coeff = torch.ones_like(reflection_coeff) * 0.75
-    scatter_density_distribution = RelaxedBernoulli(temperature=0.1, probs=density_coeff)
+    scatter_density_distribution = RelaxedBernoulli(
+        temperature=0.1, probs=density_coeff
+    )
     scatterers_density = scatter_density_distribution.sample()
     amplitude = torch.sigmoid(raw[..., 2])
     scatterers_map = scatterers_density * amplitude
 
-    psf_scatter = F.conv2d(scatterers_map, g_kernel[None, None, ...], stride=1, padding="same")
+    psf_scatter = F.conv2d(
+        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+    )
     # psf_scatter = torch.squeeze(psf_scatter)
 
     # Compute remaining intensity at a point n
@@ -420,37 +426,39 @@ def render_method_cos_theta(raw, d):
 
     # Compute the final echo
     amplification_constant = torch.tensor(np.pi)
-    alpha_amplification = lambda x: torch.log(torch.tensor(1.) + amplification_constant * x) * torch.log(
-        torch.tensor(1.) + amplification_constant)
+    alpha_amplification = lambda x: torch.log(
+        torch.tensor(1.0) + amplification_constant * x
+    ) * torch.log(torch.tensor(1.0) + amplification_constant)
     r_amplified = alpha_amplification(r)
     r_cos = cos_theta * r_amplified
     intensity_map = b + r_cos
 
     return {
-        'intensity_map': intensity_map,
-        'attenuation_coeff': attenuation_coeff,
-        'reflection_coeff': reflection_coeff,
-        'attenuation_total': attenuation_total,
-        'reflection_total': reflection_total,
-        'scatterers_density': scatterers_density,
-        'scatterers_density_coeff': density_coeff,
-        'scatter_amplitude': amplitude,
-        'b': b,
-        'r': r,
-        'r_amplified': r_amplified,
-        "confidence_maps": confidence_maps
+        "intensity_map": intensity_map,
+        "attenuation_coeff": attenuation_coeff,
+        "reflection_coeff": reflection_coeff,
+        "attenuation_total": attenuation_total,
+        "reflection_total": reflection_total,
+        "scatterers_density": scatterers_density,
+        "scatterers_density_coeff": density_coeff,
+        "scatter_amplitude": amplitude,
+        "b": b,
+        "r": r,
+        "r_amplified": r_amplified,
+        "confidence_maps": confidence_maps,
     }
+
 
 def render_method_3D(raw):
     def raw2attention(raw, dists):
         return torch.exp(-raw * dists)
 
     W, H, maps = raw.shape
+
     def raw2reflection(raw):
         return torch.exp(-raw)
-    # print(raw.shape)
-    # print(f"after reshape {raw.shape}")
-    raw = raw[None, None,...]
+
+    raw = raw[None, None, ...]
     raw = raw.permute(0, 1, 3, 2, 4)
 
     batch_size, C, W, H, maps = raw.shape
@@ -478,7 +486,9 @@ def render_method_3D(raw):
 
     # BACKSCATTERING
     density_coeff = torch.ones_like(reflection_coeff) * 0.75
-    scatter_density_distribution = RelaxedBernoulli(temperature=0.1, probs=density_coeff)
+    scatter_density_distribution = RelaxedBernoulli(
+        temperature=0.1, probs=density_coeff
+    )
     scatterers_density = scatter_density_distribution.sample()
     amplitude = torch.sigmoid(raw[..., 2])
     scatterers_map = scatterers_density * amplitude
@@ -491,74 +501,42 @@ def render_method_3D(raw):
 
     # Compute the final echo
     amplification_constant = torch.tensor(3.14)
-    alpha_amplification = lambda x: torch.log(torch.tensor(1.) + amplification_constant * x) * torch.log(
-        torch.tensor(1.) + amplification_constant)
+    alpha_amplification = lambda x: torch.log(
+        torch.tensor(1.0) + amplification_constant * x
+    ) * torch.log(torch.tensor(1.0) + amplification_constant)
     r_amplified = alpha_amplification(r)
-
 
     intensity_map = b + r_amplified
 
     intensity_map = torch.reshape(intensity_map, (7, W, H // 7))[None, ...]
-    intensity_map = F.conv3d(intensity_map, g_kernel3D[None, None, ...], stride=[7, 1, 1], padding=[0, 3, 3])
+    intensity_map = F.conv3d(
+        intensity_map, g_kernel3D[None, None, ...], stride=[7, 1, 1], padding=[0, 3, 3]
+    )
 
     return {
-        'intensity_map': intensity_map,
-        'attenuation_coeff': attenuation_coeff,
-        'reflection_coeff': reflection_coeff,
-        'attenuation_total': attenuation_total,
-        'reflection_total': reflection_total,
-        'scatterers_density': scatterers_density,
-        'scatterers_density_coeff': density_coeff,
-        'scatter_amplitude': amplitude,
-        'b': b,
-        'r': r,
-        'r_amplified': r_amplified,
-        "confidence_maps": confidence_maps
+        "intensity_map": intensity_map,
+        "attenuation_coeff": attenuation_coeff,
+        "reflection_coeff": reflection_coeff,
+        "attenuation_total": attenuation_total,
+        "reflection_total": reflection_total,
+        "scatterers_density": scatterers_density,
+        "scatterers_density_coeff": density_coeff,
+        "scatter_amplitude": amplitude,
+        "b": b,
+        "r": r,
+        "r_amplified": r_amplified,
+        "confidence_maps": confidence_maps,
     }
 
-# Note: 'g_kernel' needs to be defined or passed to the function as a PyTorch tensor.
 
-def render_us(H, W, sw, sh, chunk=1024 * 32, rays=None, c2w=None, near=0., far=55. * 0.001, **kwargs):
-    """Render rays."""
-
-    # assert rays is not None or c2w is not None
-    assert rays is not None or c2w is not None
-
-    rays_o = None
-    rays_d = None
-
-    if c2w is not None:
-        # Special case to render full image
-        for c in c2w:
-            if rays_o is None:
-                rays_o, rays_d = get_rays_us_linear(H, W, sw, sh, c)
-            else:
-                o, d = get_rays_us_linear(H, W, sw, sh, c)
-                rays_o = torch.concatenate((rays_o, o))
-                rays_d = torch.concatenate((rays_d, d))
-    else:
-        # Use provided ray batch
-        rays_o, rays_d = rays
-    sh = rays_d.shape  # [..., 3]
-
-    # Create ray batch
-    rays_o = rays_o.reshape(-1, 3).float()
-    rays_d = rays_d.reshape(-1, 3).float()
-    near = near * torch.ones_like(rays_d[..., :1])
-    far = far * torch.ones_like(rays_d[..., :1])
-
-    # (ray origin, ray direction, min dist, max dist) for each ray
-
-
-    rays = torch.cat([rays_o, rays_d, near, far], dim=-1)
-    # Render and reshape
-    all_ret = batchify_rays(rays, chunk=chunk, **kwargs)
-    # for k in all_ret:
-    #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
-    #     all_ret[k] = all_ret[k].reshape(k_sh)
-    return all_ret
-
-def render_rays_us(ray_batch, network_fn, network_query_fn, N_samples, retraw=False, lindisp=False, args=None):
+def render_rays_us(
+    ray_batch,
+    network_fn,
+    network_query_fn,
+    N_samples,
+    lindisp=False,
+    **kwargs,
+):
     """Volumetric rendering.
 
     Args:
@@ -570,7 +548,9 @@ def render_rays_us(ray_batch, network_fn, network_query_fn, N_samples, retraw=Fa
 
     def raw2outputs(raw, z_vals):
         """Transforms model's predictions to semantically meaningful values."""
-        ret = render_method_ultra_nerf(raw)  # Assuming render_method_3 is defined elsewhere
+        ret = render_method_ultra_nerf(
+            raw
+        )  # Assuming render_method_3 is defined elsewhere
         # ret = rendering(raw, z_vals)
         return ret
 
@@ -581,19 +561,16 @@ def render_rays_us(ray_batch, network_fn, network_query_fn, N_samples, retraw=Fa
     # Extract ray origin, direction
     rays_o, rays_d = ray_batch[:, 0:3], ray_batch[:, 3:6]  # [N_rays, 3] each
 
-    # Extract unit-normalized viewing direction
-    viewdirs = ray_batch[:, -3:] if ray_batch.shape[-1] > 8 else None
-
     # Extract lower, upper bound for ray distance
     bounds = ray_batch[..., 6:8].reshape(-1, 1, 2)
     near, far = bounds[..., 0], bounds[..., 1]  # [-1,1]
 
     # Decide where to sample along each ray
-    t_vals = torch.linspace(0., 1., N_samples)
+    t_vals = torch.linspace(0.0, 1.0, N_samples).to(ray_batch.device)
     if not lindisp:
-        z_vals = near * (1. - t_vals) + far * t_vals
+        z_vals = near * (1.0 - t_vals) + far * t_vals
     else:
-        z_vals = 1. / (1. / near * (1. - t_vals) + 1. / far * t_vals)
+        z_vals = 1.0 / (1.0 / near * (1.0 - t_vals) + 1.0 / far * t_vals)
     z_vals = z_vals.expand(N_rays, N_samples)
 
     # Points in space to evaluate model at

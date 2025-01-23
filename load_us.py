@@ -15,39 +15,24 @@ def _load_data(datadir, confmap, pose_path):
     else:
         poses = np.load(os.path.join(datadir, "poses.npy"))
 
-    sfx = ""
-
     if confmap:
-        imgdir = os.path.join(datadir, "confidence_maps" + sfx)
+        imgs_path = os.path.join(datadir, "confidence_maps.npy")
     else:
-        imgdir = os.path.join(datadir, "images" + sfx)
+        imgs_path = os.path.join(datadir, "images.npy")
 
-    if not os.path.exists(imgdir):
-        print(imgdir, "does not exist")
-        raise ValueError
+    if not os.path.exists(imgs_path):
+        raise ValueError("Image data not found at %s" % imgs_path)
 
-    imgfiles = sorted(
-        [
-            os.path.join(imgdir, f)
-            for f in sorted(os.listdir(imgdir))
-            if f.endswith("JPG") or f.endswith("jpg") or f.endswith("png")
-        ],
-        key=lambda i: int(os.path.basename(i).split(".")[0]),
-    )  # sort by number
+    imgs = np.load(imgs_path)
 
-    if poses.shape[0] != len(imgfiles):
-        print(
+    if poses.shape[0] != imgs.shape[0]:
+        raise ValueError(
             "Mismatch between imgs {} and poses {} !!!!".format(
-                len(imgfiles), poses.shape[-1]
+                imgs.shape[0], poses.shape[-1]
             )
         )
-        raise ValueError
 
-    def imread(f):
-        return np.array(Image.open(f).convert("L"))
-
-    imgs = imgs = [imread(f) / 255.0 for f in imgfiles]
-    imgs = np.stack(imgs)
+    imgs = imgs.astype(np.float32) / 255.0
     poses[:, :3, 3] *= 0.001
     print("Loaded image data", imgs.shape, poses.shape)
     return poses, imgs

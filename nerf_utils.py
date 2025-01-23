@@ -1,12 +1,8 @@
-import io
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-# torch.autograd.set_detect_anomaly(True)
 import torch.nn as nn
-import torch.nn.functional as F
 
 from model import NeRF
 from rendering import render_rays_us
@@ -15,6 +11,7 @@ from rendering import render_rays_us
 img2mse = lambda x, y: torch.mean((x - y) ** 2)
 mse2psnr = lambda x: -10.0 * torch.log(x) / torch.log(torch.Tensor([10.0]))
 to8b = lambda x: (255 * np.clip(x, 0, 1)).astype(np.uint8)
+
 
 # Positional encoding (section 5.1)
 class Embedder:
@@ -89,16 +86,16 @@ def get_embedder(multires, device, i=0, b=0):
 
 
 def get_rays_us_linear(H, W, sw, sh, c2w):
-    t = c2w[:3, -1]
-    R = c2w[:3, :3]
+    t = c2w[:, -1]
+    R = c2w[:, :3]
     x = torch.arange(-W / 2, W / 2, dtype=torch.float32, device=c2w.device) * sw
     y = torch.zeros_like(x)
     z = torch.zeros_like(x)
 
     origin_base = torch.stack([x, y, z], dim=1).to(c2w.device)
 
-    origin_rotated = (
-        R @ origin_base.transpose(0, 1)
+    origin_rotated = R @ origin_base.transpose(
+        0, 1
     )  # THIS WAS HADAMARD PRODUCT IN THE ORIGINAL CODE !!!
     ray_o_r = origin_rotated.transpose(0, 1)
     rays_o = ray_o_r + t
@@ -158,59 +155,66 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
 
 def batchify(fn, chunk):
-    """Constructs a version of 'fn' that applies to smaller batches.
-    """
+    """Constructs a version of 'fn' that applies to smaller batches."""
     if chunk is None:
         return fn
+
     def ret(inputs):
-        return torch.cat([fn(inputs[i:i+chunk]) for i in range(0, inputs.shape[0], chunk)], 0)
+        return torch.cat(
+            [fn(inputs[i : i + chunk]) for i in range(0, inputs.shape[0], chunk)], 0
+        )
+
     return ret
 
 
-def run_network(inputs, fn, embed_fn, netchunk=1024*64):
-    """Prepares inputs and applies network 'fn'.
-    """
+def run_network(inputs, fn, embed_fn, netchunk=1024 * 64):
+    """Prepares inputs and applies network 'fn'."""
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
     embedded = embed_fn(inputs_flat)
 
     outputs_flat = batchify(fn, netchunk)(embedded)
-    outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
+    outputs = torch.reshape(
+        outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]]
+    )
     return outputs
 
 
-def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
-    """Render rays in smaller minibatches to avoid OOM.
-    """
+def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
+    """Render rays in smaller minibatches to avoid OOM."""
     all_ret = {}
 
     for i in range(0, rays_flat.shape[0], chunk):
-        ret = render_rays_us(rays_flat[i:i+chunk], **kwargs)
+        ret = render_rays_us(rays_flat[i : i + chunk], **kwargs)
         for k in ret:
             if k not in all_ret:
                 all_ret[k] = []
             all_ret[k].append(ret[k])
 
-    all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
+    all_ret = {k: torch.cat(all_ret[k], 0) for k in all_ret}
     return all_ret
 
-def create_nerf(args):
-    """Instantiate NeRF's MLP model.
-    """
-    embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
+
+def create_nerf(args, device, mode="train"):
+    """Instantiate NeRF's MLP model."""
+    embed_fn, input_ch = get_embedder(args.multires, device, args.i_embed)
 
     output_ch = args.output_ch
     skips = [4]
-    model = NeRF(D=args.netdepth, W=args.netwidth,
-                 input_ch=input_ch, output_ch=output_ch, skips=skips)
+    model = NeRF(
+        D=args.netdepth,
+        W=args.netwidth,
+        input_ch=input_ch,
+        output_ch=output_ch,
+        skips=skips,
+    ).to(device)
     grad_vars = list(model.parameters())
 
-    network_query_fn = lambda inputs, network_fn : run_network(inputs, network_fn,
-                                                                embed_fn=embed_fn,
-                                                                netchunk=args.netchunk)
+    network_query_fn = lambda inputs, network_fn: run_network(
+        inputs, network_fn, embed_fn=embed_fn, netchunk=args.netchunk
+    )
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
-    optimizer2 = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
 
     start = 0
     basedir = args.basedir
@@ -219,34 +223,97 @@ def create_nerf(args):
     ##########################
 
     # Load checkpoints
-    if args.ft_path is not None and args.ft_path!='None':
+    if args.ft_path is not None and args.ft_path != "None":
         ckpts = [args.ft_path]
     else:
-        ckpts = [os.path.join(basedir, expname, f) for f in sorted(os.listdir(os.path.join(basedir, expname))) if 'tar' in f]
+        ckpts = [
+            os.path.join(basedir, expname, f)
+            for f in sorted(os.listdir(os.path.join(basedir, expname)))
+            if "tar" in f
+        ]
 
-    print('Found ckpts', ckpts)
-    if len(ckpts) > 0 and not args.no_reload:
+    print("Found ckpts", ckpts)
+    if len(ckpts) > 0:
         ckpt_path = ckpts[-1]
-        print('Reloading from', ckpt_path)
+        print("Reloading from", ckpt_path)
         ckpt = torch.load(ckpt_path)
 
-        start = ckpt['global_step']
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        start = ckpt["global_step"]
+
+        if mode == "train":
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+
+        # remove paramerts "views_linears.0.weight", "views_linears.0.bias" from state_dict
+        # if exists, this is for compatibility with the old code
+        new_state_dict = {}
+        for k, v in ckpt["network_fn_state_dict"].items():
+            if "views_linears.0" not in k:
+                new_state_dict[k] = v
 
         # Load model
-        model.load_state_dict(ckpt['network_fn_state_dict'])
+        model.load_state_dict(new_state_dict)
 
     ##########################
 
     render_kwargs_train = {
-        'network_query_fn' : network_query_fn,
-        'N_samples' : args.N_samples,
-        'network_fn' : model,
+        "network_query_fn": network_query_fn,
+        "N_samples": args.N_samples,
+        "network_fn": model,
     }
 
-    render_kwargs_test = {k : render_kwargs_train[k] for k in render_kwargs_train}
-    render_kwargs_test['perturb'] = False
-    render_kwargs_test['raw_noise_std'] = 0.
+    render_kwargs_test = {k: render_kwargs_train[k] for k in render_kwargs_train}
+    render_kwargs_test["perturb"] = False
+    render_kwargs_test["raw_noise_std"] = 0.0
 
-    return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer, optimizer2
+    return render_kwargs_train, render_kwargs_test, start, optimizer
 
+
+def render_us(
+    H,
+    W,
+    sw,
+    sh,
+    chunk=1024 * 32,
+    rays=None,
+    c2w=None,
+    near=0.0,
+    far=55.0 * 0.001,
+    **kwargs
+):
+    """Render rays."""
+
+    # assert rays is not None or c2w is not None
+    assert rays is not None or c2w is not None
+
+    rays_o = None
+    rays_d = None
+
+    if c2w is not None:
+        # Special case to render full image
+        for c in c2w:
+            if rays_o is None:
+                rays_o, rays_d = get_rays_us_linear(H, W, sw, sh, c)
+            else:
+                o, d = get_rays_us_linear(H, W, sw, sh, c)
+                rays_o = torch.concatenate((rays_o, o))
+                rays_d = torch.concatenate((rays_d, d))
+    else:
+        # Use provided ray batch
+        rays_o, rays_d = rays
+    sh = rays_d.shape  # [..., 3]
+
+    # Create ray batch
+    rays_o = rays_o.reshape(-1, 3).float()
+    rays_d = rays_d.reshape(-1, 3).float()
+    near = near * torch.ones_like(rays_d[..., :1])
+    far = far * torch.ones_like(rays_d[..., :1])
+
+    # (ray origin, ray direction, min dist, max dist) for each ray
+
+    rays = torch.cat([rays_o, rays_d, near, far], dim=-1)
+    # Render and reshape
+    all_ret = batchify_rays(rays, chunk=chunk, **kwargs)
+    # for k in all_ret:
+    #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
+    #     all_ret[k] = all_ret[k].reshape(k_sh)
+    return all_ret

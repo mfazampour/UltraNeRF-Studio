@@ -1,13 +1,13 @@
-expname = test6
+expname = liver_ssim
 loss = ssim
 basedir = logs
-datadir = data/synthetic_testing/l2
+datadir = G:\ultrasound_data\original\liver
 dataset_type = us
 output_ch = 5
 
-N_samples = 512
+N_samples = 516
 n_iters = 200000
 
 i_embed = 6
-probe_depth = 139
+probe_depth = 140
 probe_width = 80

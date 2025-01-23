@@ -39,7 +39,7 @@ if __name__ == "__main__":
     images = np.stack(images, axis=0)
 
     # Swap dimensions according to ultrasound standarts
-    images = images.transpose(2,1,0)
+    images = images.transpose(2, 1, 0)
 
     # Save as NIFTI
     images_nii_path = os.path.join(data_dir, "images.nii")

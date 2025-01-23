@@ -3,6 +3,7 @@ import os
 import pprint
 import shutil
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
@@ -34,18 +35,8 @@ if __name__ == "__main__":
 
     print("Loaded args")
 
-    model_name = args.datadir.split("/")[-1]
+    model_name = os.path.basename(args.datadir)
     images, poses, i_test = load_us_data(args.datadir)
-
-    # If you have logic for slicing images depending on expname, reproduce it here
-    if args_console.expname.endswith("right"):
-        size = images.shape[2] // 3
-        images = images[:, :, size:]
-    elif args_console.expname.endswith("left"):
-        size = images.shape[2] // 3
-        images = images[:, :, :-size]
-    elif args_console.expname.endswith("partial"):
-        images = images[:, : -images.shape[1] // 3, :]
 
     H, W = images[0].shape
     H = int(H)
@@ -62,8 +53,8 @@ if __name__ == "__main__":
     far = args.probe_depth * 0.001
 
     # Create nerf model
-    _, render_kwargs_test, start, grad_vars, optimizer = (
-        run_nerf_ultrasound.create_nerf(args)
+    _, render_kwargs_test, start, optimizer = (
+        run_nerf_ultrasound.create_nerf(args, device, mode="test")
     )
     bds_dict = {
         "near": torch.tensor(near, dtype=torch.float32, device=device),
@@ -84,11 +75,15 @@ if __name__ == "__main__":
     frames = []
     impedance_map = []
     map_number = 0
-    output_dir = "{}/{}/output_maps_{}_{}_{}".format(
-        args_console.logdir, args_console.expname, model_name, model_no, map_number
+    output_dir = os.path.join(
+        args_console.logdir,
+        args_console.expname,
+        "output_maps_{}_{}_{}".format(model_name, model_no, map_number),
     )
-    output_dir_params = "{}/params".format(output_dir)
-    output_dir_output = "{}/output".format(output_dir)
+
+    output_dir_params = os.path.join(output_dir, "params")
+    output_dir_output = os.path.join(output_dir, "output")
+    output_dir_compare = os.path.join(output_dir, "compare")
 
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
@@ -96,6 +91,7 @@ if __name__ == "__main__":
     os.makedirs(output_dir)
     os.makedirs(output_dir_params)
     os.makedirs(output_dir_output)
+    os.makedirs(output_dir_compare)
 
     save_it = 300
 
@@ -105,7 +101,7 @@ if __name__ == "__main__":
     # Convert poses and run rendering
     with torch.no_grad():
         for i, c2w in enumerate(poses):
-            c2w_torch = torch.from_numpy(c2w[:3, :4]).to(device)
+            c2w_torch = torch.from_numpy(c2w[:3, :4]).to(device).unsqueeze(0)
             # render_us returns a dict of torch tensors
             rendering_params = run_nerf_ultrasound.render_us(
                 H, W, sw, sh, c2w=c2w_torch, **render_kwargs_fast
@@ -114,8 +110,8 @@ if __name__ == "__main__":
             # Convert intensity_map to uint8 and save
             # Intensity map is (H, W), we need to transpose to (W, H) if needed, but original code transposed.
             # The original TF code did: tf.transpose(image), so we replicate that:
-            intensity_map = rendering_params["intensity_map"]  # [H, W]
-            intensity_map_transposed = intensity_map.permute(1, 0)  # [W, H]
+            intensity_map = rendering_params["intensity_map"][0, 0]  # [H, W]
+            intensity_map_transposed = intensity_map.T  # [W, H]
 
             # Convert from [0,1] to uint8
             img_to_save = (
@@ -125,9 +121,20 @@ if __name__ == "__main__":
                 .cpu()
                 .numpy()
             )
+
+            real_image = (images[i] * 255).astype(np.uint8)
+
             Image.fromarray(img_to_save).save(
                 os.path.join(output_dir_output, f"Generated_{1000 + i}.png")
             )
+
+            plt.subplot(1, 2, 1)
+            plt.imshow(img_to_save.T, cmap="gray")
+            plt.title("Generated")
+            plt.subplot(1, 2, 2)
+            plt.imshow(real_image, cmap="gray")
+            plt.title("Real")
+            plt.savefig(os.path.join(output_dir_compare, f"Compare_{1000 + i}.png"))
 
             # Save parameters for later
             if rendering_params_save is None:
@@ -139,7 +146,7 @@ if __name__ == "__main__":
             for key, value in rendering_params.items():
                 # Transpose value to match original TF code style
                 # Original code: tf.transpose(value)
-                val_t = value.permute(1, 0)  # [W,H]
+                val_t = value[0, 0].T  # [W,H]
                 rendering_params_save[key].append(val_t.cpu().numpy())
 
             # Save intermediate results

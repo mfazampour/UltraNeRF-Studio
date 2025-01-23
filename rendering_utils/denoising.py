@@ -8,7 +8,7 @@ import torch
 def soft_threshold(data, value):
     magnitude = torch.abs(data)
 
-    thresholded = 1 - (value/(magnitude+1e-12))
+    thresholded = 1 - (value / (magnitude + 1e-12))
     alpha = 1
     thresholded = torch.sigmoid(alpha * thresholded) * thresholded
 
@@ -16,8 +16,7 @@ def soft_threshold(data, value):
     return thresholded
 
 
-
-def wavelet_decomposition(image, wavelet_name='db2', level=2):
+def wavelet_decomposition(image, wavelet_name="db2", level=2):
     # Perform 2-level wavelet decomposition
     wavelet = pywt.Wavelet(wavelet_name)
     coeffs = ptwt.wavedec2(image, wavelet, level=level)
@@ -41,21 +40,23 @@ def wavelet_decomposition(image, wavelet_name='db2', level=2):
     # Calculate the median of these absolute values
     median_abs_coeff = torch.median(abs_coeffs)
 
-    threshold = (median_abs_coeff / 0.6745) * (2 * torch.log(torch.tensor(image.numel(), dtype=torch.float32)))
+    threshold = (median_abs_coeff / 0.6745) * (
+        2 * torch.log(torch.tensor(image.numel(), dtype=torch.float32))
+    )
 
     for i in range(1, len(coeffs)):
-        new_coeffs[i] = [soft_threshold(coeff, value=threshold) for coeff in new_coeffs[i]]
+        new_coeffs[i] = [
+            soft_threshold(coeff, value=threshold) for coeff in new_coeffs[i]
+        ]
     denoised_image = ptwt.waverec2(coeffs, wavelet)
 
     assert denoised_image.shape == image.shape
 
-
-    return image-denoised_image
-
+    return image - denoised_image
 
 
-if __name__ == '__main__':
-    
+if __name__ == "__main__":
+
     # load image
     image_path = "data/synthetic_testing/r2/images/0.png"
     image = torch.tensor(imageio.imread(image_path), dtype=torch.float32)
@@ -66,4 +67,3 @@ if __name__ == '__main__':
     plt.show()
     plt.imshow(noise[0, 0].cpu().numpy(), cmap="gray")
     plt.show()
-

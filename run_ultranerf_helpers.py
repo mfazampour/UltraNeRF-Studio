@@ -235,8 +235,8 @@ def get_rays_us_linear(H, W, sw, sh, c2w):
 
     origin_base = torch.stack([x, y, z], dim=1).to(c2w.device)
 
-    origin_rotated = (
-        R @ origin_base.transpose(0, 1)
+    origin_rotated = R @ origin_base.transpose(
+        0, 1
     )  # THIS WAS HADAMARD PRODUCT IN THE ORIGINAL CODE !!!
     ray_o_r = origin_rotated.transpose(0, 1)
     rays_o = ray_o_r + t

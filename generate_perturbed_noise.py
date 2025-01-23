@@ -12,26 +12,28 @@ from test_utils import visualize_poses
 
 def descale_poses(poses, H, W, probe_depth, probe_width):
 
-    sh = probe_depth / H # real-world mm per pixel (y)
-    sw = probe_width / W # real-world mm per pixel (x)
+    sh = probe_depth / H  # real-world mm per pixel (y)
+    sw = probe_width / W  # real-world mm per pixel (x)
 
     poses[:, 0, 3] *= sw
     poses[:, 1, 3] *= sh
 
     return poses
 
+
 def rescale_poses(poses, H, W, probe_depth, probe_width):
 
-    sh = probe_depth / H # real-world mm per pixel (y)
-    sw = probe_width / W # real-world mm per pixel (x)
+    sh = probe_depth / H  # real-world mm per pixel (y)
+    sw = probe_width / W  # real-world mm per pixel (x)
 
     poses[:, 0, 3] /= sw
     poses[:, 1, 3] /= sh
 
     return poses
 
+
 def normalize_translations(poses):
-    
+
     min_translation = np.min(poses[:, :3, 3], axis=0)
     max_translation = np.max(poses[:, :3, 3], axis=0)
 
@@ -42,12 +44,12 @@ def normalize_translations(poses):
     return poses, translation_range, min_translation
 
 
-        
 def denormalize_translations(poses, translation_range, min_translation):
 
     poses[:, :3, 3] = poses[:, :3, 3] * translation_range + min_translation
 
     return poses
+
 
 if __name__ == "__main__":
 
@@ -69,7 +71,6 @@ if __name__ == "__main__":
 
     data_dir = args.data_dir
 
-
     # Set noisy position config
     tss = [0.0, 0.01, 0.05]
     rss = [0.0, 0.1, 0.5]
@@ -86,13 +87,13 @@ if __name__ == "__main__":
                 for _ in range(repeats):
                     configs.append((ts, rs, pr))
 
-    
-
     for ts, rs, pr in configs:
         rotation_strength = rs
         translation_strength = ts
 
-        print(f"Rotation Strength: {rotation_strength}, Translation Strength: {translation_strength}, Perturb Ratio: {pr}")
+        print(
+            f"Rotation Strength: {rotation_strength}, Translation Strength: {translation_strength}, Perturb Ratio: {pr}"
+        )
 
         for i in range(repeats):
 
@@ -104,12 +105,14 @@ if __name__ == "__main__":
             image_path = os.path.join(data_dir, "images", "1.png")
             image = np.array(Image.open(image_path).convert("L"))
             H, W = image.shape
-            
+
             # Descale poses
             poses_np = descale_poses(poses_np, H, W, args.probe_depth, args.probe_width)
 
             # Normalize translations
-            poses_np, translation_range, min_translation = normalize_translations(poses_np)
+            poses_np, translation_range, min_translation = normalize_translations(
+                poses_np
+            )
 
             # Convert to tensor
             poses = torch.tensor(poses_np, dtype=torch.float32)
@@ -126,7 +129,9 @@ if __name__ == "__main__":
             noisy_poses = pose.compose([SE3_noise, poses])
 
             # Denormalize translations
-            noisy_poses = denormalize_translations(noisy_poses, translation_range, min_translation)
+            noisy_poses = denormalize_translations(
+                noisy_poses, translation_range, min_translation
+            )
             poses = denormalize_translations(poses, translation_range, min_translation)
 
             # Convert to numpy for visualization
@@ -137,12 +142,22 @@ if __name__ == "__main__":
             id_pose = f"{rotation_strength}_{translation_strength}_{pr}_{i}"
 
             # Visualize the original and perturbed poses
-            visualize_poses(org_poses, noisy_poses, sample_ratio=0.1, arrow_length=5.0, title=id_pose)
+            visualize_poses(
+                org_poses,
+                noisy_poses,
+                sample_ratio=0.1,
+                arrow_length=5.0,
+                title=id_pose,
+            )
             plt.show()
 
             # Rescale poses
-            org_poses = rescale_poses(org_poses, H, W, args.probe_depth, args.probe_width)
-            noisy_poses = rescale_poses(noisy_poses, H, W, args.probe_depth, args.probe_width)
+            org_poses = rescale_poses(
+                org_poses, H, W, args.probe_depth, args.probe_width
+            )
+            noisy_poses = rescale_poses(
+                noisy_poses, H, W, args.probe_depth, args.probe_width
+            )
 
             # Select slices to apply the noise
             num_slices = int(pr * poses.shape[0])
@@ -153,7 +168,17 @@ if __name__ == "__main__":
 
             # Convert back to 4x4 format
 
-            noisy_poses = np.concatenate([noisy_poses, np.repeat(np.array([0, 0, 0, 1]).reshape(1, 1, 4), repeats=noisy_poses.shape[0], axis=0)], axis=1)
+            noisy_poses = np.concatenate(
+                [
+                    noisy_poses,
+                    np.repeat(
+                        np.array([0, 0, 0, 1]).reshape(1, 1, 4),
+                        repeats=noisy_poses.shape[0],
+                        axis=0,
+                    ),
+                ],
+                axis=1,
+            )
 
             # Save noisy poses
             # os.makedirs(os.path.join(data_dir, "noisy_poses"), exist_ok=True)
