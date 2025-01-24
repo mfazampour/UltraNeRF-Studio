@@ -102,9 +102,8 @@ if __name__ == "__main__":
             poses_np = np.load(poses_path)[:, :3, :4]
 
             # Load Images (for visualization only)
-            image_path = os.path.join(data_dir, "images", "1.png")
-            image = np.array(Image.open(image_path).convert("L"))
-            H, W = image.shape
+            image_path = os.path.join(data_dir, "images.npy")
+            _, H, W = image.shape
 
             # Descale poses
             poses_np = descale_poses(poses_np, H, W, args.probe_depth, args.probe_width)
