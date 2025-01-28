@@ -548,7 +548,8 @@ def render_rays_us(
 
     def raw2outputs(raw, z_vals):
         """Transforms model's predictions to semantically meaningful values."""
-        ret = render_method_ultra_nerf(
+        #TODO: add args controlling the rendering method
+        ret = render_method_3(
             raw
         )  # Assuming render_method_3 is defined elsewhere
         # ret = rendering(raw, z_vals)

@@ -420,3 +420,44 @@ def render_us(
     #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
     #     all_ret[k] = all_ret[k].reshape(k_sh)
     return all_ret
+
+
+def compute_loss(output, target, args, losses):
+    loss = {}
+
+    if args.loss == "l2":
+        l2_intensity_loss = losses['l2'](output, target)
+        loss["l2"] = (1.0, l2_intensity_loss)
+    elif args.loss == "ssim":
+        ssim_intensity_loss = losses['ssim'](output, target)
+        loss["ssim"] = (args.ssim_weight, ssim_intensity_loss)
+        l2_intensity_loss = img2mse(output, target)
+        loss["l2"] = (args.l2_weight, l2_intensity_loss)
+
+    return loss
+
+def compute_regularization(rendering_output, reg_funcs, weights=(0.01, 0.00001, 0.34)):
+    lncc = reg_funcs['lncc']
+    lncc_w, tv_w, refl_max = weights
+    lcc_penalty_scatter_attenuation = lncc(
+        rendering_output['scatter_amplitude'],
+        rendering_output['attenuation_coeff'])
+    reg = {}
+
+    reg["lcc_penalty"] = (lncc_w, lcc_penalty_scatter_attenuation)
+    dy_ampl = rendering_output['scatter_amplitude'][:, :, :, 1:] - rendering_output['scatter_amplitude'][:, :, :, :-1]
+    dy_ampl = torch.cat([dy_ampl, dy_ampl[:, :, :, -1:]], dim=-1)  # Pad y direction
+
+    dx_ampl = rendering_output['scatter_amplitude'][:, :, 1:, :] - rendering_output['scatter_amplitude'][:, :, :-1, :]
+    dx_ampl = torch.cat([dx_ampl, dx_ampl[:, :, -1:, :]], dim=-2)
+    # Calculate TV penalties
+    total_variation_penalty_y_ampl = torch.sum(
+        (refl_max - rendering_output['reflection_coeff'])
+        * torch.abs(dy_ampl.squeeze()))
+    total_variation_penalty_x_ampl = torch.sum(
+        (refl_max - rendering_output['reflection_coeff'])
+        * torch.abs(dx_ampl.squeeze()))
+
+    amplitude_tv_penalty = total_variation_penalty_x_ampl + total_variation_penalty_y_ampl
+    reg["tv_penalty"] = (tv_w, amplitude_tv_penalty)
+    return reg

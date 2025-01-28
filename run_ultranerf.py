@@ -6,174 +6,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from monai.losses.ssim_loss import SSIMLoss
+from monai.losses import LocalNormalizedCrossCorrelationLoss
 
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
 from load_us import load_us_data
-from nerf_utils import create_nerf, img2mse, render_us
+from nerf_utils import create_nerf, img2mse, render_us, compute_loss, compute_regularization
+from unerf_config import config_parser
 
 torch.cuda.set_per_process_memory_fraction(0.95)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def config_parser():
-
-    import configargparse
-
-    parser = configargparse.ArgumentParser()
-    parser.add_argument("--config", is_config_file=True, help="config file path")
-    parser.add_argument("--expname", type=str, help="experiment name")
-    parser.add_argument(
-        "--basedir", type=str, default="./logs/", help="where to store ckpts and logs"
-    )
-    parser.add_argument(
-        "--datadir",
-        type=str,
-        default="./data/synthetic_testing/l2",
-        help="input data directory",
-    )
-
-    # training options
-    parser.add_argument("--n_iters", type=int, default=100000)
-    parser.add_argument("--ssim_filter_size", type=int, default=7)
-    parser.add_argument("--ssim_lambda", type=float, default=0.75)
-    parser.add_argument("--loss", type=str, default="l2")
-    parser.add_argument("--probe_depth", type=int, default=140)
-    parser.add_argument("--probe_width", type=int, default=80)
-    parser.add_argument("--output_ch", type=int, default=5)
-
-    parser.add_argument("--tensorboard", action="store_true")
-    parser.add_argument("--confmap", type=bool, default=False)
-    parser.add_argument("--pose_path", type=str, default=None)
-
-    parser.add_argument(
-        "--random_seed", type=int, default=-1
-    )  # Set to 0 for deterministic behaviour
-
-    parser.add_argument("--netdepth", type=int, default=8, help="layers in network")
-    parser.add_argument("--netwidth", type=int, default=128, help="channels per layer")
-    parser.add_argument(
-        "--netdepth_fine", type=int, default=8, help="layers in fine network"
-    )
-    parser.add_argument(
-        "--netwidth_fine",
-        type=int,
-        default=128,
-        help="channels per layer in fine network",
-    )
-    parser.add_argument(
-        "--N_rand",
-        type=int,
-        default=32 * 32 * 4,
-        help="batch size (number of random rays per gradient step)",
-    )
-    parser.add_argument("--lrate", type=float, default=1e-4, help="learning rate")
-    parser.add_argument(
-        "--lrate_decay",
-        type=int,
-        default=250,
-        help="exponential learning rate decay (in 1000 steps)",
-    )
-    parser.add_argument(
-        "--chunk",
-        type=int,
-        default=4096 * 16,
-        help="number of rays processed in parallel, decrease if running out of memory",
-    )
-    parser.add_argument(
-        "--netchunk",
-        type=int,
-        default=4096 * 16,
-        help="number of pts sent through network in parallel, decrease if running out of memory",
-    )
-
-    parser.add_argument(
-        "--ft_path",
-        type=str,
-        default=None,
-        help="specific weights npy file to reload for coarse network",
-    )
-
-    # rendering options
-    parser.add_argument(
-        "--N_samples", type=int, default=64, help="number of coarse samples per ray"
-    )
-    parser.add_argument(
-        "--i_embed",
-        type=int,
-        default=0,
-        help="set 0 for default positional encoding, -1 for none",
-    )
-    parser.add_argument(
-        "--i_embed_gauss",
-        type=int,
-        default=0,
-        help="mapping size for Gaussian positional encoding, 0 for none",
-    )
-
-    parser.add_argument(
-        "--multires",
-        type=int,
-        default=10,
-        help="log2 of max freq for positional encoding (3D location)",
-    )
-    parser.add_argument(
-        "--multires_views",
-        type=int,
-        default=4,
-        help="log2 of max freq for positional encoding (2D direction)",
-    )
-    parser.add_argument(
-        "--raw_noise_std",
-        type=float,
-        default=0.0,
-        help="std dev of noise added to regularize sigma_a output, 1e0 recommended",
-    )
-
-    parser.add_argument(
-        "--render_only",
-        action="store_true",
-        help="do not optimize, reload weights and render out render_poses path",
-    )
-    parser.add_argument(
-        "--render_test",
-        action="store_true",
-        help="render the test set instead of render_poses path",
-    )
-    parser.add_argument(
-        "--render_factor",
-        type=int,
-        default=0,
-        help="downsampling factor to speed up rendering, set 4 or 8 for fast preview",
-    )
-
-    # training options
-
-    # dataset options
-    parser.add_argument("--dataset_type", type=str, default="us", help="options: us")
-    parser.add_argument(
-        "--testskip",
-        type=int,
-        default=8,
-        help="will load 1/N images from test/val sets, useful for large datasets like deepvoxels",
-    )
-
-    # logging/saving options
-    parser.add_argument(
-        "--i_print",
-        type=int,
-        default=2000,
-        help="frequency of console printout and metric loggin",
-    )
-    parser.add_argument(
-        "--i_img", type=int, default=100, help="frequency of tensorboard image logging"
-    )
-    parser.add_argument(
-        "--i_weights", type=int, default=10000, help="frequency of weight ckpt saving"
-    )
-    return parser
 
 
 def train():
@@ -273,17 +117,17 @@ def train():
         k1=0.01,
         k2=0.1,
     )
-
+    losses = {"l2": img2mse,
+              "ssim": ssim_loss,
+              "lncc": LocalNormalizedCrossCorrelationLoss(spatial_dims=2)}
     start = start + 1
     for i in trange(start, N_iters + 1):
         time0 = time.time()
 
         img_i = np.random.choice(
             i_train
-        )  # Why? This does not guarantee that all images are used
-
-        if img_i < 4 or img_i > len(i_train + 1) - 4:  # Why?
-            continue
+        )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
+        # or removing from a temporary set as long as it's not empty
 
         target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
         pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
@@ -295,16 +139,12 @@ def train():
         output_image = rendering_output["intensity_map"]
 
         optimizer.zero_grad()
-        loss = {}
 
-        if args.loss == "l2":
-            l2_intensity_loss = img2mse(output_image, target)
-            loss["l2"] = (1.0, l2_intensity_loss)
-        elif args.loss == "ssim":
-            ssim_intensity_loss = ssim_loss(output_image, target)
-            loss["ssim"] = (ssim_weight, ssim_intensity_loss)
-            l2_intensity_loss = img2mse(output_image, target)
-            loss["l2"] = (l2_weight, l2_intensity_loss)
+        loss = compute_loss(output_image, target, args, losses)
+        if args.reg and i > args.r_warm_up_it:
+            reg = compute_regularization(rendering_output, losses,
+                                      weights=(args.r_lcc_penalty, args.r_tv_penalty, args.r_max_reflection))
+            loss = {**loss, **reg}
 
         total_loss = 0.0
         for loss_value in loss.values():

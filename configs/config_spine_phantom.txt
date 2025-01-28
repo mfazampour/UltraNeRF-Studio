@@ -1,0 +1,10 @@
+expname = spine_phantom_basic_unerf
+loss = l2
+basedir = ./logs
+datadir = ../pytorch-nerf/data/spine_phantom/training
+dataset_type = us
+output_ch = 5
+N_samples = 1300
+i_embed = 6
+probe_depth = 100
+probe_width = 38
