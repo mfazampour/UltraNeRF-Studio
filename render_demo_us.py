@@ -10,6 +10,8 @@ from PIL import Image
 
 import run_ultranerf as run_nerf_ultrasound
 from load_us import load_us_data
+import open3d as o3d
+import matplotlib.cm as cm
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,9 +55,14 @@ if __name__ == "__main__":
     far = args.probe_depth * 0.001
 
     # Create nerf model
-    _, render_kwargs_test, start, optimizer = run_nerf_ultrasound.create_nerf(
-        args, device, mode="test"
-    )
+    if args.reconstruction:
+        _, render_kwargs_test, start, optimizer, optimizer_rec = run_nerf_ultrasound.create_nerf(
+            args, device, mode="test"
+        )
+    else:
+        _, render_kwargs_test, start, optimizer, _ = run_nerf_ultrasound.create_nerf(
+            args, device, mode="test"
+        )
     bds_dict = {
         "near": torch.tensor(near, dtype=torch.float32, device=device),
         "far": torch.tensor(far, dtype=torch.float32, device=device),
@@ -99,83 +106,118 @@ if __name__ == "__main__":
     rendering_params_save = None
 
     # Convert poses and run rendering
-    with torch.no_grad():
-        for i, c2w in enumerate(poses):
+    rec_list = None
+    cmap = cm.plasma
+    with (torch.no_grad()):
+        for i, c2w in enumerate(poses[:600]):
             c2w_torch = torch.from_numpy(c2w[:3, :4]).to(device).unsqueeze(0)
             # render_us returns a dict of torch tensors
             rendering_params = run_nerf_ultrasound.render_us(
                 H, W, sw, sh, c2w=c2w_torch, **render_kwargs_fast
             )
 
+            pts = rendering_params["pts"].cpu().numpy() * 1000
+            seg = rendering_params["reconstruction"].cpu().numpy().squeeze()
+            seg[seg >= 0.5] = 255.
+            seg[seg != 255.] = 0.
+            seg = seg.transpose(1, 0)
+            non_zero_mask = seg != 0
+            seg = seg[non_zero_mask]
+            pts = pts[non_zero_mask]
+            # seg = seg.reshape(-1, 1)
+            pts = pts.reshape(-1, 3)
+            # rec = np.concatenate([pts, seg], axis=-1)
+            rec = pts
+            if rec_list is not None:
+                rec_list = np.concatenate([rec_list, rec], axis=0)
+            else:
+                rec_list = rec
+
             # Convert intensity_map to uint8 and save
             # Intensity map is (H, W), we need to transpose to (W, H) if needed, but original code transposed.
             # The original TF code did: tf.transpose(image), so we replicate that:
-            intensity_map = rendering_params["intensity_map"][0, 0]  # [H, W]
-            intensity_map_transposed = intensity_map.T  # [W, H]
+    #         intensity_map = rendering_params["intensity_map"][0, 0]  # [H, W]
+    #         intensity_map_transposed = intensity_map.T  # [W, H]
+    #
+    #         # Convert from [0,1] to uint8
+    #         img_to_save = (
+    #             (intensity_map_transposed * 255.0)
+    #             .clamp(0, 255)
+    #             .to(torch.uint8)
+    #             .cpu()
+    #             .numpy()
+    #         )
+    #
+    #         real_image = (images[i] * 255).astype(np.uint8)
+    #
+    #         Image.fromarray(img_to_save).save(
+    #             os.path.join(output_dir_output, f"Generated_{1000 + i}.png")
+    #         )
+    #
+    #         plt.subplot(1, 2, 1)
+    #         plt.imshow(img_to_save.T, cmap="gray")
+    #         plt.title("Generated")
+    #         plt.subplot(1, 2, 2)
+    #         plt.imshow(real_image, cmap="gray")
+    #         plt.title("Real")
+    #         plt.savefig(os.path.join(output_dir_compare, f"Compare_{1000 + i}.png"))
+    #
+    #         # Save parameters for later
+    #         if rendering_params_save is None:
+    #             # Initialize the storage dict
+    #             rendering_params_save = {}
+    #             for key in rendering_params:
+    #                 rendering_params_save[key] = []
+    #
+    #         for key, value in rendering_params.items():
+    #             # Transpose value to match original TF code style
+    #             # Original code: tf.transpose(value)
+    #             val_t = value[0, 0].T  # [W,H]
+    #             rendering_params_save[key].append(val_t.cpu().numpy())
+    #
+    #         # Save intermediate results
+    #         if i == save_it:
+    #             # Save all parameters up to this point
+    #             for key, value in rendering_params_save.items():
+    #                 np_to_save = np.array(value)
+    #                 np.save(f"{output_dir_params}/{key}.npy", np_to_save)
+    #             rendering_params_save = None
+    #
+    #         elif i != save_it and i % save_it == 0 and i != 0:
+    #             # Append results to existing files
+    #             for key, value in rendering_params_save.items():
+    #                 f_name = f"{output_dir_params}/{key}.npy"
+    #                 np_to_save = np.array(value)
+    #                 if os.path.exists(f_name):
+    #                     np_existing = np.load(f_name)
+    #                     new_to_save = np.concatenate((np_existing, np_to_save), axis=0)
+    #                     np.save(f_name, new_to_save)
+    #                 else:
+    #                     np.save(f_name, np_to_save)
+    #             rendering_params_save = None
+    #
+    # # Save any remaining parameters after loop ends
+    # if rendering_params_save is not None:
+    #     for key, value in rendering_params_save.items():
+    #         f_name = f"{output_dir_params}/{key}.npy"
+    #         np_to_save = np.array(value)
+    #         if os.path.exists(f_name):
+    #             np_existing = np.load(f_name)
+    #             np_to_save = np.concatenate((np_existing, np_to_save), axis=0)
+    #         np.save(f_name, np_to_save)
 
-            # Convert from [0,1] to uint8
-            img_to_save = (
-                (intensity_map_transposed * 255.0)
-                .clamp(0, 255)
-                .to(torch.uint8)
-                .cpu()
-                .numpy()
-            )
+    # rec_list = np.array(rec_list)
+    rec_list = rec_list.reshape(-1, 3)
 
-            real_image = (images[i] * 255).astype(np.uint8)
+    point_cloud = o3d.geometry.PointCloud()
 
-            Image.fromarray(img_to_save).save(
-                os.path.join(output_dir_output, f"Generated_{1000 + i}.png")
-            )
+    # Set the points (coordinates) of the point cloud
+    point_cloud.points = o3d.utility.Vector3dVector(rec_list[..., :3])
 
-            plt.subplot(1, 2, 1)
-            plt.imshow(img_to_save.T, cmap="gray")
-            plt.title("Generated")
-            plt.subplot(1, 2, 2)
-            plt.imshow(real_image, cmap="gray")
-            plt.title("Real")
-            plt.savefig(os.path.join(output_dir_compare, f"Compare_{1000 + i}.png"))
+    # Optionally, color the points by intensity (this requires RGB format)
+    # colors = np.zeros((rec_list[..., :3].shape[0], 3))  # Initialize with black
+    # colors[:, 0] = rec_list[..., 3]  # Set red channel to intensity values
+    # point_cloud.colors = o3d.utility.Vector3dVector(colors)
 
-            # Save parameters for later
-            if rendering_params_save is None:
-                # Initialize the storage dict
-                rendering_params_save = {}
-                for key in rendering_params:
-                    rendering_params_save[key] = []
-
-            for key, value in rendering_params.items():
-                # Transpose value to match original TF code style
-                # Original code: tf.transpose(value)
-                val_t = value[0, 0].T  # [W,H]
-                rendering_params_save[key].append(val_t.cpu().numpy())
-
-            # Save intermediate results
-            if i == save_it:
-                # Save all parameters up to this point
-                for key, value in rendering_params_save.items():
-                    np_to_save = np.array(value)
-                    np.save(f"{output_dir_params}/{key}.npy", np_to_save)
-                rendering_params_save = None
-
-            elif i != save_it and i % save_it == 0 and i != 0:
-                # Append results to existing files
-                for key, value in rendering_params_save.items():
-                    f_name = f"{output_dir_params}/{key}.npy"
-                    np_to_save = np.array(value)
-                    if os.path.exists(f_name):
-                        np_existing = np.load(f_name)
-                        new_to_save = np.concatenate((np_existing, np_to_save), axis=0)
-                        np.save(f_name, new_to_save)
-                    else:
-                        np.save(f_name, np_to_save)
-                rendering_params_save = None
-
-    # Save any remaining parameters after loop ends
-    if rendering_params_save is not None:
-        for key, value in rendering_params_save.items():
-            f_name = f"{output_dir_params}/{key}.npy"
-            np_to_save = np.array(value)
-            if os.path.exists(f_name):
-                np_existing = np.load(f_name)
-                np_to_save = np.concatenate((np_existing, np_to_save), axis=0)
-            np.save(f_name, np_to_save)
+    # Visualize the point cloud
+    o3d.visualization.draw_geometries([point_cloud])

@@ -46,6 +46,44 @@ class NeRF(nn.Module):
 
         return outputs
 
+class Reconstruction(nn.Module):
+    def __init__(self, D=8, W=256, input_ch=3, output_ch=6, skips=[4]):
+        """ """
+        super(Reconstruction, self).__init__()
+        self.D = D
+        self.W = W
+        self.input_ch = input_ch
+        self.skips = skips
+
+        self.pts_linears = nn.ModuleList(
+            [nn.Linear(input_ch, W)]
+            + [
+                nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W)
+                for i in range(D - 1)
+            ]
+        )
+
+        for l in self.pts_linears:
+            nn.init.uniform_(l.weight, a=-0.05, b=0.05)
+            nn.init.uniform_(l.bias, a=-0.05, b=0.05)
+
+        self.output_linear = nn.Linear(W, 1)
+        nn.init.uniform_(self.output_linear.weight, a=-0.05, b=0.05)
+        nn.init.uniform_(self.output_linear.bias, a=-0.05, b=0.05)
+
+    def forward(self, x):
+        input = x
+        h = input
+        for i, l in enumerate(self.pts_linears):
+            h = l(h)
+            h = F.relu(h)
+            if i in self.skips:
+                h = torch.cat([input, h], -1)
+
+        outputs = F.sigmoid(self.output_linear(h))
+
+        return outputs
+
 
 class BARF(nn.Module):
     def __init__(self, D=8, W=256, input_ch=3, output_ch=6, skips=[4], L=0, c2f=None):

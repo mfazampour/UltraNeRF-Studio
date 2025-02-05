@@ -7,9 +7,9 @@ from PIL import Image
 ##########  see https://github.com/Fyusion/LLFF for original
 
 
-def _load_data(datadir, confmap, pose_path):
+def _load_data(datadir, confmap, pose_path, reconstruction):
     # poses are 4x4 [R T] matrices
-
+    poses_labels, labels = None, None
     if pose_path is not None:
         poses = np.load(pose_path)
     else:
@@ -19,6 +19,9 @@ def _load_data(datadir, confmap, pose_path):
         imgs_path = os.path.join(datadir, "confidence_maps.npy")
     else:
         imgs_path = os.path.join(datadir, "images.npy")
+    if reconstruction:
+        labels_path = os.path.join(datadir, "labels.npy")
+        poses_labels = np.load(os.path.join(datadir, "poses_labels.npy"))
 
     if not os.path.exists(imgs_path):
         raise ValueError("Image data not found at %s" % imgs_path)
@@ -35,8 +38,13 @@ def _load_data(datadir, confmap, pose_path):
     imgs = imgs.astype(np.float32) / 255.0
     poses[:, :3, 3] *= 0.001
     print("Loaded image data", imgs.shape, poses.shape)
-    return poses, imgs
-
+    if reconstruction:
+        labels = np.load(labels_path)
+        labels = labels.astype(np.float32) / 255.0
+        poses_labels[:, :3, 3] *= 0.001
+        return poses, imgs, labels, poses_labels
+    else:
+        return poses, imgs
 
 def normalize(x):
     return x / np.linalg.norm(x)
@@ -166,9 +174,13 @@ def spherify_poses(poses, bds):
     return poses_reset, new_poses, bds
 
 
-def load_us_data(datadir, confmap=False, pose_path=None):
+def load_us_data(datadir, confmap=False, pose_path=None, reconstruction=False):
+    labels, poses_labels = None, None
+    if reconstruction:
+        poses, imgs, labels, poses_labels  = _load_data(datadir, confmap=confmap, pose_path=pose_path, reconstruction=True)
+    else:
+        poses, imgs = _load_data(datadir, confmap=confmap, pose_path=pose_path, reconstruction=False)
 
-    poses, imgs = _load_data(datadir, confmap=confmap, pose_path=pose_path)
     print("Loaded", datadir)
     images = imgs
 
@@ -185,5 +197,11 @@ def load_us_data(datadir, confmap=False, pose_path=None):
 
     images = images.astype(np.float32)
     poses = poses.astype(np.float32)
+    if reconstruction:
+        labels = labels.astype(np.float32)
+        poses_labels = poses_labels.astype(np.float32)
 
-    return images, poses, i_test
+        return images, poses, labels, poses_labels, i_test
+    else:
+        return images, poses, i_test
+

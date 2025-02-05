@@ -20,7 +20,7 @@ if __name__ == "__main__":
     poses_path = os.path.join(data_dir, "poses.npy")
     poses_np = np.load(poses_path)
 
-    poses_np[:, 2, 3] = 0
+    # poses_np[:, 2, 3] = 0
 
     poses_np = poses_np.transpose(0, 2, 1).reshape(-1, 16).astype(np.float32)
 

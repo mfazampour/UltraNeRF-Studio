@@ -175,4 +175,10 @@ def config_parser():
                         help='enables convex mode')
     parser.add_argument("--segm_frac", type=int, default=5,
                         help='Number of iteration for warm_up')
+    parser.add_argument('--reconstruction', action='store_true',
+                        help='enables regularization')
+    parser.add_argument("--rec_step", type=int, default=20,
+                        help='Weight for clustering constrain')
+    parser.add_argument("--rec_iter", type=int, default=20000,
+                        help='Number of iteration for warm_up')
     return parser

@@ -89,7 +89,7 @@ def train():
             file.write(open(args.config, "r").read())
 
     # Create nerf model
-    render_kwargs_train, render_kwargs_test, start, optimizer = create_nerf(
+    render_kwargs_train, render_kwargs_test, start, optimizer, _ = create_nerf(
         args, device=device
     )
 
