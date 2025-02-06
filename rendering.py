@@ -657,7 +657,7 @@ def render_rays_us_with_reconstruction(
     ret_reconstruction = network_query_fn_rec(input_reconstruction, network_rec)
 
     ret["reconstruction"] = ret_reconstruction.permute(2, 1, 0)[None, ...]
-    ret['pts'] = pts
+    # ret['pts'] = pts
 
     # if retraw:
     #     ret['raw'] = raw
