@@ -461,9 +461,9 @@ def compute_loss(output, target, args, losses):
         loss["l2"] = (1.0, l2_intensity_loss)
     elif args.loss == "ssim":
         ssim_intensity_loss = losses['ssim'](output, target)
-        loss["ssim"] = (args.ssim_weight, ssim_intensity_loss)
+        loss["ssim"] = (args.ssim_lambda, ssim_intensity_loss)
         l2_intensity_loss = img2mse(output, target)
-        loss["l2"] = (args.l2_weight, l2_intensity_loss)
+        loss["l2"] = (1.-args.ssim_lambda, l2_intensity_loss)
 
     return loss
 
