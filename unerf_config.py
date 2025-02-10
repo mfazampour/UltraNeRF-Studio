@@ -177,6 +177,8 @@ def config_parser():
                         help='Number of iteration for warm_up')
     parser.add_argument('--reconstruction', action='store_true',
                         help='enables regularization')
+    parser.add_argument('--confidence', action='store_true',
+                        help='enables regularization')
     parser.add_argument("--rec_step", type=int, default=20,
                         help='Weight for clustering constrain')
     parser.add_argument("--rec_iter", type=int, default=20000,

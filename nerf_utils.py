@@ -86,8 +86,8 @@ def get_embedder(multires, device, i=0, b=0, input_dim=3):
 
 
 def get_rays_us_linear(H, W, sw, sh, c2w):
-    t = c2w[:, -1]
-    R = c2w[:, :3]
+    t = c2w[:3, -1]
+    R = c2w[:3, :3]
     x = torch.arange(-W / 2, W / 2, dtype=torch.float32, device=c2w.device) * sw
     y = torch.zeros_like(x)
     z = torch.zeros_like(x)
@@ -492,3 +492,23 @@ def compute_regularization(rendering_output, reg_funcs, weights=(0.01, 0.00001, 
     amplitude_tv_penalty = total_variation_penalty_x_ampl + total_variation_penalty_y_ampl
     reg["tv_penalty"] = (tv_w, amplitude_tv_penalty)
     return reg
+
+def compute_pts_from_pose(H, W, sw, sh, pose, near, far):
+    o, d = get_rays_us_linear(H, W, sw, sh, pose)
+    o = o.reshape(-1, 3).float()
+    d = d.reshape(-1, 3).float()
+    print(o.shape)
+    # Decide where to sample along each ray
+    N_samples = H
+    t_vals = torch.linspace(0.0, 1.0, N_samples).to(pose.device)
+    z_vals = near * (1.0 - t_vals) + far * t_vals
+
+    z_vals = z_vals.expand(W, N_samples)
+
+    # Points in space to evaluate model at
+    origin = o.unsqueeze(-2)
+    step = d.unsqueeze(-2) * z_vals.unsqueeze(-1)
+
+    pts = step + origin
+
+    return pts

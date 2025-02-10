@@ -164,27 +164,44 @@ def train():
             render_kwargs_train['network_rec'].train()
             render_kwargs_train['network_fn'].eval()
             img_i = np.random.choice(
-                i_train[0:599:args.rec_step]
+                i_train[0:889:args.rec_step]
             )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
             # or removing from a temporary set as long as it's not empty
 
             target_rec = torch.Tensor(labels[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-            pose = torch.from_numpy(poses_labels[img_i, :3, :4]).to(device).unsqueeze(0)
+            pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
             target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+            pts = torch.from_numpy(poses_labels[img_i]).to(device).unsqueeze(0)
 
             #####  Core optimization loop  #####
             rendering_output = render_us(
                 H, W, sw, sh, c2w=pose, chunk=args.chunk, retraw=True, **render_kwargs_train
             )
-            output = rendering_output["reconstruction"]
+            r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1)
+            a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1)
+            s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1)
 
+            theta = torch.concatenate([r, a, s], dim=-1)
+
+            # theta.requires_grad = True
+
+            input_reconstruction = torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
+            ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
+                                                                           render_kwargs_train["network_rec"])
+            # rendering_output["confidence_maps"] *
+            if args.confidence:
+                output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]
+            else:
+                output = ret_reconstruction.permute(2, 1, 0)[None, ...]
             optimizer_rec.zero_grad()
-            total_loss = losses["bce"](output, target_rec)
+            loss = dict()
+            loss['bce'] = losses["bce"](output, target_rec)
+            total_loss = loss["bce"]
             total_loss.backward()
             optimizer_rec.step()
-
+            rendering_output["rec"] = output
+            time0 = time.time()
         dt = time.time() - time0
-
         # NOTE: IMPORTANT!
         ###   update learning rate   ###
         decay_rate = 0.1
@@ -200,7 +217,7 @@ def train():
                 writer.add_scalar(f"Loss/{k}", v[1].item(), i)
             writer.add_scalar("Learning rate", new_lrate, i)
 
-        dt = time.time() - time0
+
         if (i + 1) % args.i_print == 0:
 
             rendering_path = os.path.join(basedir, expname, "train_rendering")
@@ -208,11 +225,11 @@ def train():
                 os.path.join(basedir, expname, "train_rendering"), exist_ok=True
             )
 
-            print(f"Step: {i+1}, Loss: {total_loss.item()}, Time: {dt}")  # type: ignore
-            detailed_loss_string = ", ".join(
-                [f"{k}: {v[1].item()}" for k, v in loss.items()]
-            )
-            print(detailed_loss_string)
+            # print(f"Step: {i+1}, Loss: {total_loss.item()}, Time: {dt}")  # type: ignore
+            # detailed_loss_string = ", ".join(
+            #     [f"{k}: {v[1].item()}" for k, v in loss.items()]
+            # )
+            # print(detailed_loss_string)
 
             plt.figure(figsize=(16, 8))
             for j, m in enumerate(rendering_output):

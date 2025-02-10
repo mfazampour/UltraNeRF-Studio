@@ -13,7 +13,7 @@ def _load_data(datadir, confmap, pose_path, reconstruction):
     if pose_path is not None:
         poses = np.load(pose_path)
     else:
-        poses = np.load(os.path.join(datadir, "poses.npy"))
+        poses = np.load(os.path.join(datadir, "poses.npy"))[:890]
 
     if confmap:
         imgs_path = os.path.join(datadir, "confidence_maps.npy")

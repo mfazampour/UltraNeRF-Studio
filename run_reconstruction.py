@@ -12,6 +12,68 @@ import run_ultranerf as run_nerf_ultrasound
 from load_us import load_us_data
 import open3d as o3d
 import matplotlib.cm as cm
+import open3d as o3d
+import numpy as np
+import torch
+import mcubes  # For Marching Cubes
+
+
+def extract_mesh_from_sdf(sdf, voxel_size=0.01):
+    """
+    Extracts a 3D mesh from an SDF using Marching Cubes.
+
+    Args:
+        sdf (torch.Tensor): Signed Distance Function (SDF) volume.
+        voxel_size (float): Size of each voxel.
+
+    Returns:
+        o3d.geometry.TriangleMesh: Reconstructed 3D mesh.
+    """
+    sdf_np = sdf.cpu().numpy()  # Convert to NumPy
+    verts, faces = mcubes.marching_cubes(sdf_np, isovalue=0)
+
+    # Scale the mesh to correct size
+    verts = verts * voxel_size
+
+    # Convert to Open3D mesh
+    mesh = o3d.geometry.TriangleMesh()
+    mesh.vertices = o3d.utility.Vector3dVector(verts)
+    mesh.triangles = o3d.utility.Vector3iVector(faces)
+    mesh.compute_vertex_normals()
+    return mesh
+def compute_sdf(occupied_points, grid_res=100, truncation=0.05, device="cuda"):
+    """
+    Computes a Signed Distance Function (SDF) from an occupancy grid.
+
+    Args:
+        occupied_points (np.ndarray): Mx3 array of occupied points.
+        grid_res (int): Resolution of the SDF grid.
+        truncation (float): Truncation distance for TSDF.
+        device (str): "cuda" for GPU acceleration.
+
+    Returns:
+        torch.Tensor: SDF volume (grid_res³).
+    """
+    occupied_points = torch.tensor(occupied_points, device=device, dtype=torch.float32)
+
+    # Compute bounding box
+    min_bound = occupied_points.min(dim=0)[0] - 0.1
+    max_bound = occupied_points.max(dim=0)[0] + 0.1
+
+    # Create 3D grid
+    x = torch.linspace(min_bound[0], max_bound[0], grid_res, device=device)
+    y = torch.linspace(min_bound[1], max_bound[1], grid_res, device=device)
+    z = torch.linspace(min_bound[2], max_bound[2], grid_res, device=device)
+    X, Y, Z = torch.meshgrid(x, y, z, indexing='ij')
+    grid_points = torch.stack([X.flatten(), Y.flatten(), Z.flatten()], dim=-1)
+
+    # Compute distance to nearest occupied point
+    dists = torch.cdist(grid_points, occupied_points)
+    min_distances, _ = torch.min(dists, dim=1)
+
+    # Convert distances into SDF values
+    sdf_values = torch.clamp(min_distances, -truncation, truncation) / truncation
+    return sdf_values.view(grid_res, grid_res, grid_res)  # Reshape into 3D grid
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,7 +100,7 @@ if __name__ == "__main__":
     print("Loaded args")
 
     model_name = os.path.basename(args.datadir)
-    images, poses, i_test = load_us_data(args.datadir)
+    images, poses,  labels, poses_labels, i_test = load_us_data(args.datadir, reconstruction=True)
 
     H, W = images[0].shape
     H = int(H)
@@ -46,6 +108,7 @@ if __name__ == "__main__":
 
     images = images.astype(np.float32)
     poses = poses.astype(np.float32)
+    poses_labels = poses_labels.astype(np.float32)
 
     print("Loaded image data")
     print(images.shape)
@@ -107,117 +170,126 @@ if __name__ == "__main__":
 
     # Convert poses and run rendering
     rec_list = None
+    weights_list = None
     cmap = cm.plasma
     with (torch.no_grad()):
-        for i, c2w in enumerate(poses[:600]):
+        for c2w, pts in zip(poses[:600], poses_labels[:600]):
             c2w_torch = torch.from_numpy(c2w[:3, :4]).to(device).unsqueeze(0)
             # render_us returns a dict of torch tensors
-            rendering_params = run_nerf_ultrasound.render_us(
+            rendering_output = run_nerf_ultrasound.render_us(
                 H, W, sw, sh, c2w=c2w_torch, **render_kwargs_fast
             )
 
-            pts = rendering_params["pts"].cpu().numpy() * 1000
-            seg = rendering_params["reconstruction"].cpu().numpy().squeeze()
-            seg[seg >= 0.5] = 255.
-            seg[seg != 255.] = 0.
+            r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1)
+            a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1)
+            s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1)
+
+            theta = torch.concatenate([r, a, s], dim=-1)
+
+            input_reconstruction = torch.cat([torch.tensor(pts.squeeze(), device='cuda'), theta.squeeze()], dim=-1)
+            ret_reconstruction = render_kwargs_test["network_query_fn_rec"](input_reconstruction,
+                                                                            render_kwargs_test["network_rec"])
+            # rendering_output["confidence_maps"] *
+            output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]
+            seg = output.cpu().numpy().squeeze()
+            weights = rendering_output["reflection_coeff"].cpu().numpy().squeeze().squeeze().transpose(1, 0)
+
+            seg[seg >= 0.5] = 1.
+            seg[seg != 1.] = 0.
             seg = seg.transpose(1, 0)
-            non_zero_mask = seg != 0
-            seg = seg[non_zero_mask]
-            pts = pts[non_zero_mask]
-            # seg = seg.reshape(-1, 1)
+            # non_zero_mask = seg != 0
+            # seg = seg[non_zero_mask]
+            # pts = pts[non_zero_mask]
+            seg = seg.reshape(-1, 1)
             pts = pts.reshape(-1, 3)
-            # rec = np.concatenate([pts, seg], axis=-1)
-            rec = pts
+            rec = np.concatenate([pts, seg], axis=-1)
             if rec_list is not None:
                 rec_list = np.concatenate([rec_list, rec], axis=0)
+                weights_list = np.concatenate([weights_list, weights], axis=0)
             else:
                 rec_list = rec
+                weights_list = weights
 
-            # Convert intensity_map to uint8 and save
-            # Intensity map is (H, W), we need to transpose to (W, H) if needed, but original code transposed.
-            # The original TF code did: tf.transpose(image), so we replicate that:
-    #         intensity_map = rendering_params["intensity_map"][0, 0]  # [H, W]
-    #         intensity_map_transposed = intensity_map.T  # [W, H]
-    #
-    #         # Convert from [0,1] to uint8
-    #         img_to_save = (
-    #             (intensity_map_transposed * 255.0)
-    #             .clamp(0, 255)
-    #             .to(torch.uint8)
-    #             .cpu()
-    #             .numpy()
-    #         )
-    #
-    #         real_image = (images[i] * 255).astype(np.uint8)
-    #
-    #         Image.fromarray(img_to_save).save(
-    #             os.path.join(output_dir_output, f"Generated_{1000 + i}.png")
-    #         )
-    #
-    #         plt.subplot(1, 2, 1)
-    #         plt.imshow(img_to_save.T, cmap="gray")
-    #         plt.title("Generated")
-    #         plt.subplot(1, 2, 2)
-    #         plt.imshow(real_image, cmap="gray")
-    #         plt.title("Real")
-    #         plt.savefig(os.path.join(output_dir_compare, f"Compare_{1000 + i}.png"))
-    #
-    #         # Save parameters for later
-    #         if rendering_params_save is None:
-    #             # Initialize the storage dict
-    #             rendering_params_save = {}
-    #             for key in rendering_params:
-    #                 rendering_params_save[key] = []
-    #
-    #         for key, value in rendering_params.items():
-    #             # Transpose value to match original TF code style
-    #             # Original code: tf.transpose(value)
-    #             val_t = value[0, 0].T  # [W,H]
-    #             rendering_params_save[key].append(val_t.cpu().numpy())
-    #
-    #         # Save intermediate results
-    #         if i == save_it:
-    #             # Save all parameters up to this point
-    #             for key, value in rendering_params_save.items():
-    #                 np_to_save = np.array(value)
-    #                 np.save(f"{output_dir_params}/{key}.npy", np_to_save)
-    #             rendering_params_save = None
-    #
-    #         elif i != save_it and i % save_it == 0 and i != 0:
-    #             # Append results to existing files
-    #             for key, value in rendering_params_save.items():
-    #                 f_name = f"{output_dir_params}/{key}.npy"
-    #                 np_to_save = np.array(value)
-    #                 if os.path.exists(f_name):
-    #                     np_existing = np.load(f_name)
-    #                     new_to_save = np.concatenate((np_existing, np_to_save), axis=0)
-    #                     np.save(f_name, new_to_save)
-    #                 else:
-    #                     np.save(f_name, np_to_save)
-    #             rendering_params_save = None
-    #
-    # # Save any remaining parameters after loop ends
-    # if rendering_params_save is not None:
-    #     for key, value in rendering_params_save.items():
-    #         f_name = f"{output_dir_params}/{key}.npy"
-    #         np_to_save = np.array(value)
-    #         if os.path.exists(f_name):
-    #             np_existing = np.load(f_name)
-    #             np_to_save = np.concatenate((np_existing, np_to_save), axis=0)
-    #         np.save(f_name, np_to_save)
-
-    # rec_list = np.array(rec_list)
-    rec_list = rec_list.reshape(-1, 3)
-
-    point_cloud = o3d.geometry.PointCloud()
-
-    # Set the points (coordinates) of the point cloud
-    point_cloud.points = o3d.utility.Vector3dVector(rec_list[..., :3])
-
+    rec_list = rec_list.reshape(-1, 4)
+    weights = weights_list.reshape(-1)
     # Optionally, color the points by intensity (this requires RGB format)
     # colors = np.zeros((rec_list[..., :3].shape[0], 3))  # Initialize with black
     # colors[:, 0] = rec_list[..., 3]  # Set red channel to intensity values
     # point_cloud.colors = o3d.utility.Vector3dVector(colors)
-
+    occupied_points = rec_list[rec_list[..., 3] == 1.][..., :3]
+    occupied_ind = np.where(rec_list[..., 3] == 1)
     # Visualize the point cloud
-    o3d.visualization.draw_geometries([point_cloud])
+    # Normalize weights to sum to 1 (for probability sampling)
+    weights = weights[occupied_ind] / np.sum(weights[occupied_ind])
+
+    # Define the number of points to sample (adjust as needed)
+    num_samples = min(10000, rec_list.shape[0])  # Sample at most 50k points
+    print(weights.shape)
+    print(rec_list.shape)
+
+    # Sample points based on weights
+    sample_indices = np.random.choice(occupied_points.shape[0], size=num_samples, p=weights, replace=False)
+    # sampled_points = rec_list[sample_indices]
+
+    # sampled_indices = torch.randperm(rec_list.shape[0])[:2000]  # Use only 5,000 random points
+    # sampled_points = rec_list[sampled_indices]
+    # Compute distances only to sampled points
+
+    point_cloud = o3d.geometry.PointCloud()
+
+    # Set the points (coordinates) of the point cloud
+    point_cloud.points = o3d.utility.Vector3dVector(occupied_points)
+    points = np.asarray(point_cloud.points)
+
+    # Compute min and max per axis
+    min_vals = points.min(axis=0)
+    max_vals = points.max(axis=0)
+
+    # Normalize using min-max scaling
+    normalized_points = (points - min_vals) / (max_vals - min_vals)
+
+    # Create new Open3D point cloud with normalized points
+    normalized_pcd = o3d.geometry.PointCloud()
+    normalized_pcd.points = o3d.utility.Vector3dVector(normalized_points)
+    o3d.io.write_point_cloud("normalized_point_cloud.ply", normalized_pcd)
+    normalized_pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+    #
+    # # Orient normals consistently
+    # point_cloud.orient_normals_consistent_tangent_plane(k=10)
+
+    # # Visualize point cloud with normals
+    o3d.visualization.draw_geometries([normalized_pcd], point_show_normal=True)
+    # o3d.visualization.draw_geometries([point_cloud])
+    # occupied_points = sampled_points[sampled_points[..., 3] == 1.][..., :3]
+
+    downsampled_points = np.asarray(normalized_pcd.points)[sample_indices]
+    downsampled_normals = np.asarray(normalized_pcd.normals)[sample_indices]
+
+    # Create new Open3D point cloud with downsampled data
+    downsampled_pcd = o3d.geometry.PointCloud()
+    downsampled_pcd.points = o3d.utility.Vector3dVector(downsampled_points)
+    downsampled_pcd.normals = o3d.utility.Vector3dVector(downsampled_normals)
+
+    # Visualize the downsampled point cloud
+    o3d.visualization.draw_geometries([downsampled_pcd])
+
+    # sdf = compute_sdf(occupied_points)
+    # torch.save(sdf.cpu(), "sdf.pt")
+    # print("SDF computed and saved.")
+
+    # # Extract mesh
+    # mesh = extract_mesh_from_sdf(sdf)
+    # o3d.visualization.draw_geometries([mesh])
+
+    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(normalized_pcd, depth=9)
+
+    # Save and visualize
+    o3d.io.write_triangle_mesh("mesh_poisson.ply", mesh)
+    o3d.visualization.draw_geometries([mesh])
+
+    # # Save the mesh
+    # o3d.io.write_triangle_mesh("reconstructed_mesh.ply", mesh)
+    # print("Mesh extracted and saved.")
+    #
+    # mesh = o3d.io.read_triangle_mesh("reconstructed_mesh.ply")
+    # o3d.visualization.draw_geometries([mesh])
