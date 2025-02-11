@@ -547,7 +547,49 @@ def render_rays_us(
     """
 
 
+def render_rays_us_with_reconstruction_pts(
+        ray_batch,
+        network_fn,
+        network_rec,
+        network_query_fn,
+        network_query_fn_rec,
+        N_samples,
+        pts,
+        lindisp=False,
+        **kwargs,
+):
+    """Volumetric rendering.
 
+    Args:
+    ray_batch: Tensor of shape [batch_size, ...]. We define rays and do not sample.
+
+    Returns:
+    Rendered outputs.
+    """
+
+    def raw2outputs(raw, z_vals=None):
+        """Transforms model's predictions to semantically meaningful values."""
+        # TODO: add args controlling the rendering method
+        ret = render_method_3(
+            raw
+        )  # Assuming render_method_3 is defined elsewhere
+        # ret = rendering(raw, z_vals)
+        return ret
+    # Evaluate model at each point
+    raw = network_query_fn(pts, network_fn)  # [N_rays, N_samples , 3]
+    ret = raw2outputs(raw)
+
+    # input_reconstruction = torch.cat([pts.detach().clone(), raw.detach().clone()], dim=-1)
+    #
+    # ret_reconstruction = network_query_fn_rec(input_reconstruction, network_rec)
+    #
+    # ret["reconstruction"] = ret_reconstruction.permute(2, 1, 0)[None, ...]
+    # ret['pts'] = pts
+
+    # if retraw:
+    #     ret['raw'] = raw
+
+    return ret
 def render_rays_us_with_reconstruction(
         ray_batch,
         network_fn,
@@ -600,7 +642,6 @@ def render_rays_us_with_reconstruction(
     step = rays_d.unsqueeze(-2) * z_vals.unsqueeze(-1)
 
     pts = step + origin
-
     # Evaluate model at each point
     raw = network_query_fn(pts, network_fn)  # [N_rays, N_samples , 5]
     ret = raw2outputs(raw, z_vals)

@@ -133,11 +133,12 @@ def train():
             # or removing from a temporary set as long as it's not empty
 
             target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-            pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
-
+            # pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
+            pts = torch.from_numpy(poses_labels[img_i]).to(device)
+            render_kwargs_train["pts"] = pts
             #####  Core optimization loop  #####
             rendering_output = render_us(
-                H, W, sw, sh, c2w=pose, chunk=args.chunk, retraw=True, **render_kwargs_train
+                H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
             )
             output_image = rendering_output["intensity_map"]
 
@@ -171,11 +172,11 @@ def train():
             target_rec = torch.Tensor(labels[img_i]).to(device).unsqueeze(0).unsqueeze(0)
             pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
             target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-            pts = torch.from_numpy(poses_labels[img_i]).to(device).unsqueeze(0)
-
+            pts = torch.from_numpy(poses_labels[img_i]).to(device)
+            render_kwargs_train["pts"] = pts
             #####  Core optimization loop  #####
             rendering_output = render_us(
-                H, W, sw, sh, c2w=pose, chunk=args.chunk, retraw=True, **render_kwargs_train
+                H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
             )
             r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1)
             a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1)

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 from model import NeRF, BARF, PoseRefine, Reconstruction
-from rendering import render_rays_us, render_rays_us_with_reconstruction
+from rendering import render_rays_us, render_rays_us_with_reconstruction, render_rays_us_with_reconstruction_pts
 
 # Misc
 img2mse = lambda x, y: torch.mean((x - y) ** 2)
@@ -194,8 +194,13 @@ def run_barf_network(inputs, fn, netchunk=1024 * 64):
 def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
     """Render rays in smaller minibatches to avoid OOM."""
     all_ret = {}
-
-    renderer = render_rays_us if kwargs["network_rec"] is None else render_rays_us_with_reconstruction
+    if kwargs["network_rec"] is not None:
+        renderer = render_rays_us_with_reconstruction
+    else:
+        renderer = render_rays_us
+    if kwargs["pts"] is not None:
+        renderer = render_rays_us_with_reconstruction_pts
+        rays_flat = kwargs['pts']
     for i in range(0, rays_flat.shape[0], chunk):
         ret = renderer(rays_flat[i : i + chunk], **kwargs)
         for k in ret:
@@ -411,7 +416,12 @@ def render_us(
     **kwargs
 ):
     """Render rays."""
-
+    if kwargs["pts"] is not None:
+        all_ret = batchify_rays(rays, chunk=chunk, **kwargs)
+        # for k in all_ret:
+        #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
+        #     all_ret[k] = all_ret[k].reshape(k_sh)
+        return all_ret
     # assert rays is not None or c2w is not None
     if rays is None and c2w is None:
         raise ValueError("rays and c2w are both None")
