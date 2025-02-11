@@ -182,12 +182,11 @@ def train():
             s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1)
 
             theta = torch.concatenate([r, a, s], dim=-1)
-
-            # theta.requires_grad = True
-
-            input_reconstruction = torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
+            input_reconstruction = theta.squeeze()\
+                if args.rec_only_theta else torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
             ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
-                                                                           render_kwargs_train["network_rec"])
+                                                                             render_kwargs_train["network_rec"])
+
             # rendering_output["confidence_maps"] *
             if args.confidence:
                 output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]

@@ -210,7 +210,10 @@ def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
 def create_nerf(args, device, mode="train"):
     """Instantiate NeRF's MLP model."""
     embed_fn, input_ch = get_embedder(args.multires, device, args.i_embed)
-    embed_fn_rec, input_ch_rec = get_embedder(args.multires, device, args.i_embed, input_dim=6)
+    if args.rec_only_theta:
+        embed_fn_rec, input_ch_rec = get_embedder(args.multires, device, args.i_embed, input_dim=3)
+    else:
+        embed_fn_rec, input_ch_rec = get_embedder(args.multires, device, args.i_embed, input_dim=6)
     output_ch = args.output_ch
     skips = [4]
     model = NeRF(

@@ -1,4 +1,4 @@
-expname = spine_rec_10th_norm_890
+expname = spine_rec_10th_norm_890_only_theta
 loss = l2
 basedir = ./logs
 datadir = ./data/spine_phantom_segmentation
@@ -13,6 +13,7 @@ i_weights = 5000
 reg = True
 reconstruction = True
 rec_step = 10
-rec_iter = 10001
+rec_iter = 101
 r_warm_up_it = 5001
 confidence = True
+rec_only_theta = True
