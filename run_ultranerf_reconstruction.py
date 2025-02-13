@@ -123,45 +123,7 @@ def train():
               'bce': BCELoss()}
     start = start + 1
     for i in trange(start, N_iters + 1):
-        if i < args.rec_iter:
-            render_kwargs_train['network_rec'].eval()
-            time0 = time.time()
-
-            img_i = np.random.choice(
-                i_train
-            )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
-            # or removing from a temporary set as long as it's not empty
-
-            target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-            # pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
-            pts = torch.from_numpy(poses_labels[img_i]).to(device)
-            render_kwargs_train["pts"] = pts
-            #####  Core optimization loop  #####
-            rendering_output = render_us(
-                H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
-            )
-            output_image = rendering_output["intensity_map"]
-
-            optimizer.zero_grad()
-
-            loss = compute_loss(output_image, target, args, losses)
-            if args.reg and i > args.r_warm_up_it:
-                reg = compute_regularization(rendering_output, losses,
-                                          weights=(args.r_lcc_penalty, args.r_tv_penalty, args.r_max_reflection))
-                loss = {**loss, **reg}
-
-            total_loss = 0.0
-            for loss_value in loss.values():
-                tmp = loss_value[0] * loss_value[1]
-                total_loss += tmp
-
-            if type(total_loss) != torch.Tensor:
-                raise ValueError("Loss is not a tensor: Problem with loss calculation")
-
-            total_loss.backward()
-            optimizer.step()
-
-        else:
+        if args.rec_only_occ:
             render_kwargs_train['network_rec'].train()
             render_kwargs_train['network_fn'].eval()
             img_i = np.random.choice(
@@ -170,46 +132,113 @@ def train():
             # or removing from a temporary set as long as it's not empty
 
             target_rec = torch.Tensor(labels[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-            pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
-            target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+            target = target_rec
             pts = torch.from_numpy(poses_labels[img_i]).to(device)
             render_kwargs_train["pts"] = pts
             #####  Core optimization loop  #####
-            rendering_output = render_us(
-                H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
-            )
-            r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1)
-            a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1)
-            s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1)
 
-            theta = torch.concatenate([r, a, s], dim=-1)
-            input_reconstruction = theta.squeeze()\
-                if args.rec_only_theta else torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
+            input_reconstruction = pts.squeeze()
             ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
                                                                              render_kwargs_train["network_rec"])
 
-            # rendering_output["confidence_maps"] *
-            if args.confidence:
-                output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]
-            else:
-                output = ret_reconstruction.permute(2, 1, 0)[None, ...]
+            output = ret_reconstruction.permute(2, 1, 0)[None, ...]
             optimizer_rec.zero_grad()
             loss = dict()
             loss['bce'] = losses["bce"](output, target_rec)
             total_loss = loss["bce"]
             total_loss.backward()
             optimizer_rec.step()
+            rendering_output = dict()
             rendering_output["rec"] = output
             time0 = time.time()
-        dt = time.time() - time0
-        # NOTE: IMPORTANT!
-        ###   update learning rate   ###
-        decay_rate = 0.1
-        decay_steps = args.lrate_decay * 1000
-        new_lrate = args.lrate * (decay_rate ** (i / decay_steps))
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = new_lrate
-        ################################
+        else:
+            if i < args.rec_iter:
+                render_kwargs_train['network_rec'].eval()
+                time0 = time.time()
+
+                img_i = np.random.choice(
+                    i_train
+                )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
+                # or removing from a temporary set as long as it's not empty
+
+                target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+                # pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
+                pts = torch.from_numpy(poses_labels[img_i]).to(device)
+                render_kwargs_train["pts"] = pts
+                #####  Core optimization loop  #####
+                rendering_output = render_us(
+                    H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
+                )
+                output_image = rendering_output["intensity_map"]
+
+                optimizer.zero_grad()
+
+                loss = compute_loss(output_image, target, args, losses)
+                if args.reg and i > args.r_warm_up_it:
+                    reg = compute_regularization(rendering_output, losses,
+                                              weights=(args.r_lcc_penalty, args.r_tv_penalty, args.r_max_reflection))
+                    loss = {**loss, **reg}
+
+                total_loss = 0.0
+                for loss_value in loss.values():
+                    tmp = loss_value[0] * loss_value[1]
+                    total_loss += tmp
+
+                if type(total_loss) != torch.Tensor:
+                    raise ValueError("Loss is not a tensor: Problem with loss calculation")
+
+                total_loss.backward()
+                optimizer.step()
+
+            else:
+                render_kwargs_train['network_rec'].train()
+                render_kwargs_train['network_fn'].eval()
+                img_i = np.random.choice(
+                    i_train[0:889:args.rec_step]
+                )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
+                # or removing from a temporary set as long as it's not empty
+
+                target_rec = torch.Tensor(labels[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+                pose = torch.from_numpy(poses[img_i, :3, :4]).to(device).unsqueeze(0)
+                target = torch.Tensor(images[img_i]).to(device).unsqueeze(0).unsqueeze(0)
+                pts = torch.from_numpy(poses_labels[img_i]).to(device)
+                render_kwargs_train["pts"] = pts
+                #####  Core optimization loop  #####
+                rendering_output = render_us(
+                    H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
+                )
+                r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1)
+                a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1)
+                s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1)
+
+                theta = torch.concatenate([r, a, s], dim=-1)
+                input_reconstruction = theta.squeeze()\
+                    if args.rec_only_theta else torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
+                ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
+                                                                                 render_kwargs_train["network_rec"])
+
+                # rendering_output["confidence_maps"] *
+                if args.confidence:
+                    output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]
+                else:
+                    output = ret_reconstruction.permute(2, 1, 0)[None, ...]
+                optimizer_rec.zero_grad()
+                loss = dict()
+                loss['bce'] = losses["bce"](output, target_rec)
+                total_loss = loss["bce"]
+                total_loss.backward()
+                optimizer_rec.step()
+                rendering_output["rec"] = output
+                time0 = time.time()
+            dt = time.time() - time0
+            # NOTE: IMPORTANT!
+            ###   update learning rate   ###
+            decay_rate = 0.1
+            decay_steps = args.lrate_decay * 1000
+            new_lrate = args.lrate * (decay_rate ** (i / decay_steps))
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = new_lrate
+            ################################
 
         if args.tensorboard:
             writer.add_scalar("Loss/total_loss", total_loss.item(), i)

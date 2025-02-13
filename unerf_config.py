@@ -185,4 +185,6 @@ def config_parser():
                         help='Weight for clustering constrain')
     parser.add_argument("--rec_iter", type=int, default=20000,
                         help='Number of iteration for warm_up')
+    parser.add_argument('--rec_only_occ', action='store_true',
+                        help='enables regularization')
     return parser
