@@ -198,9 +198,12 @@ def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
         renderer = render_rays_us_with_reconstruction
     else:
         renderer = render_rays_us
-    if kwargs["pts"] is not None:
-        renderer = render_rays_us_with_reconstruction_pts
-        rays_flat = kwargs['pts']
+    try:
+        if kwargs["pts"] is not None:
+            renderer = render_rays_us_with_reconstruction_pts
+            rays_flat = kwargs['pts']
+    except KeyError:
+        pass
     for i in range(0, rays_flat.shape[0], chunk):
         ret = renderer(rays_flat[i : i + chunk], **kwargs)
         for k in ret:
@@ -416,12 +419,15 @@ def render_us(
     **kwargs
 ):
     """Render rays."""
-    if kwargs["pts"] is not None:
-        all_ret = batchify_rays(rays, chunk=chunk, **kwargs)
-        # for k in all_ret:
-        #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
-        #     all_ret[k] = all_ret[k].reshape(k_sh)
-        return all_ret
+    try:
+        if kwargs["pts"] is not None:
+            all_ret = batchify_rays(rays, chunk=chunk, **kwargs)
+            # for k in all_ret:
+            #     k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
+            #     all_ret[k] = all_ret[k].reshape(k_sh)
+            return all_ret
+    except KeyError:
+        pass
     # assert rays is not None or c2w is not None
     if rays is None and c2w is None:
         raise ValueError("rays and c2w are both None")
@@ -466,10 +472,10 @@ def render_us(
     return all_ret
 
 
-def compute_loss(output, target, args, losses):
+def compute_loss(output, target, args, losses, i):
     loss = {}
 
-    if args.loss == "l2":
+    if args.loss == "l2" or i < args.r_warm_up_it:
         l2_intensity_loss = losses['l2'](output, target)
         loss["l2"] = (1.0, l2_intensity_loss)
     elif args.loss == "ssim":
@@ -510,7 +516,6 @@ def compute_pts_from_pose(H, W, sw, sh, pose, near, far):
     o, d = get_rays_us_linear(H, W, sw, sh, pose)
     o = o.reshape(-1, 3).float()
     d = d.reshape(-1, 3).float()
-    print(o.shape)
     # Decide where to sample along each ray
     N_samples = H
     t_vals = torch.linspace(0.0, 1.0, N_samples).to(pose.device)
