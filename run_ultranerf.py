@@ -121,6 +121,7 @@ def train():
               "ssim": ssim_loss,
               "lncc": LocalNormalizedCrossCorrelationLoss(spatial_dims=2)}
     start = start + 1
+    # render_kwargs_train["pts"] = None
     for i in trange(start, N_iters + 1):
         time0 = time.time()
 

@@ -546,6 +546,45 @@ def render_rays_us(
     Rendered outputs.
     """
 
+    def raw2outputs(raw, z_vals):
+        """Transforms model's predictions to semantically meaningful values."""
+        # TODO: add args controlling the rendering method
+        ret = render_method_3(
+            raw
+        )  # Assuming render_method_3 is defined elsewhere
+        # ret = rendering(raw, z_vals)
+        return ret
+
+    ###############################
+    # Batch size
+    N_rays = ray_batch.shape[0]
+
+    # Extract ray origin, direction
+    rays_o, rays_d = ray_batch[:, 0:3], ray_batch[:, 3:6]  # [N_rays, 3] each
+
+    # Extract lower, upper bound for ray distance
+    bounds = ray_batch[..., 6:8].reshape(-1, 1, 2)
+    near, far = bounds[..., 0], bounds[..., 1]  # [-1,1]
+
+    # Decide where to sample along each ray
+    t_vals = torch.linspace(0.0, 1.0, N_samples).to(ray_batch.device)
+    if not lindisp:
+        z_vals = near * (1.0 - t_vals) + far * t_vals
+    else:
+        z_vals = 1.0 / (1.0 / near * (1.0 - t_vals) + 1.0 / far * t_vals)
+    z_vals = z_vals.expand(N_rays, N_samples)
+
+    # Points in space to evaluate model at
+    origin = rays_o.unsqueeze(-2)
+    step = rays_d.unsqueeze(-2) * z_vals.unsqueeze(-1)
+
+    pts = step + origin
+    # Evaluate model at each point
+    raw = network_query_fn(pts, network_fn)  # [N_rays, N_samples , 5]
+    ret = raw2outputs(raw, z_vals)
+
+    return ret
+
 
 def render_rays_us_with_reconstruction_pts(
         ray_batch,
