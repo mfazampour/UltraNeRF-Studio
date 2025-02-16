@@ -173,7 +173,7 @@ def train():
 
                 optimizer.zero_grad()
 
-                loss = compute_loss(output_image, target, args, losses)
+                loss = compute_loss(output_image, target, args, losses, i)
                 if args.reg and i > args.r_warm_up_it:
                     reg = compute_regularization(rendering_output, losses,
                                               weights=(args.r_lcc_penalty, args.r_tv_penalty, args.r_max_reflection))
