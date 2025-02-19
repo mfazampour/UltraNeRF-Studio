@@ -1,5 +1,5 @@
 expname = 23_04_felix_all
-loss = l2
+loss = ssim
 basedir = ./logs
 datadir = ./data/23_04_felix/processed23_04_all
 dataset_type = us
@@ -16,7 +16,7 @@ r_lcc_penalty = 0.001
 r_tv_penalty = 0.00001
 rec_step = 10
 rec_iter = 10001
-r_warm_up_it = 5001
+r_warm_up_it = 15001
 confidence = True
 rec_only_theta = False
 rec_only_occ = False
