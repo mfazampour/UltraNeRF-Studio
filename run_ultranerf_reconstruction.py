@@ -194,7 +194,7 @@ def train():
                 render_kwargs_train['network_rec'].train()
                 render_kwargs_train['network_fn'].eval()
                 img_i = np.random.choice(
-                    i_train[0:889:args.rec_step]
+                    i_train[::args.rec_step]
                 )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
                 # or removing from a temporary set as long as it's not empty
 
