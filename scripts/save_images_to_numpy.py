@@ -30,8 +30,8 @@ def load_images_from_directory(directory):
 
 
 # Usage
-directory = ('./data/22_51_2002/22_51_labels/22_51_labels/')
+directory = ('./data/patient21/patient21_labels/')
 images_np = load_images_from_directory(directory)
-np.save('./data/processed22_51_2002/labels.npy', images_np)
+np.save('./data/processedpatient21/labels.npy', images_np)
 # Now images_np is a NumPy array with the images sorted by the number in their filenames
 print(images_np.shape)  # Print the shape of the resulting NumPy array
