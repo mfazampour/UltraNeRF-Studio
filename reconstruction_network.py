@@ -135,8 +135,7 @@ def train():
         r, a, s, c = torch.from_numpy(r_n[img_i]).to(device), torch.from_numpy(a_n[img_i]).to(device), \
         torch.from_numpy(s_n[img_i]).to(device), torch.from_numpy(c_list[img_i]).to(device)
         theta = torch.concatenate([r, a, s], dim=-1)
-        input_reconstruction = theta.squeeze()\
-            if args.rec_only_theta else torch.cat([pts.squeeze(), theta.squeeze()], dim=-1)
+        input_reconstruction = theta.squeeze()
         ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
                                                                          render_kwargs_train["network_rec"])
 
