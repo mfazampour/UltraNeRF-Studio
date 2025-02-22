@@ -41,7 +41,6 @@ def _load_data(datadir, confmap, pose_path, reconstruction):
     if reconstruction:
         labels = np.load(labels_path)
         labels = labels.astype(np.float32) / 255.0
-        poses_labels[:, :3, 3] *= 0.001
         return poses, imgs, labels, poses_labels
     else:
         return poses, imgs
@@ -174,7 +173,7 @@ def spherify_poses(poses, bds):
     return poses_reset, new_poses, bds
 
 
-def load_us_data(datadir, confmap=False, pose_path=None, reconstruction=False):
+def load_us_data(datadir, confmap=False, pose_path=None, reconstruction=False, rec_eval=False):
     labels, poses_labels = None, None
     if reconstruction:
         poses, imgs, labels, poses_labels  = _load_data(datadir, confmap=confmap, pose_path=pose_path, reconstruction=True)
@@ -200,6 +199,8 @@ def load_us_data(datadir, confmap=False, pose_path=None, reconstruction=False):
     if reconstruction:
         labels = labels.astype(np.float32)
         poses_labels = poses_labels.astype(np.float32)
+        if rec_eval:
+            return poses_labels
 
         return images, poses, labels, poses_labels, i_test
     else:
