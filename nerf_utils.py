@@ -250,10 +250,10 @@ def create_nets_for_reconstruction(args, device, mode="train"):
             skips=skips,
         ).to(device)
 
-        for i, l in enumerate(model.pts_linears):
-            if i < 6:
-                for param in l.parameters():
-                    param.requires_grad = False
+        # for i, l in enumerate(model.pts_linears):
+        #     if i < 6:
+        #         for param in l.parameters():
+        #             param.requires_grad = False
 
         grad_vars_reg = list(model_rec.parameters())
         optimizer_reg = torch.optim.Adam(params=grad_vars_reg, lr=args.lrate, betas=(0.9, 0.999))
