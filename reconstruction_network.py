@@ -110,10 +110,10 @@ def train():
         rendering_output = render_us(
             H, W, sw, sh, c2w=None, chunk=args.chunk, retraw=True, **render_kwargs_train
         )
-        r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1).cpu().numpy()
-        a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1).cpu().numpy()
-        s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1).cpu().numpy()
-        c = rendering_output["confidence_maps"].detach().clone().cpu().numpy()
+        r = rendering_output["reflection_coeff"].detach().clone().permute(0, 3, 2, 1).cpu().numpy().squeeze(0)
+        a = rendering_output["attenuation_coeff"].detach().clone().permute(0, 3, 2, 1).cpu().numpy().squeeze(0)
+        s = rendering_output["scatter_amplitude"].detach().clone().permute(0, 3, 2, 1).cpu().numpy().squeeze(0)
+        c = rendering_output["confidence_maps"].detach().clone().permute(0, 3, 2, 1).cpu().numpy().squeeze(0)
         r_list.append(r)
         a_list.append(a)
         s_list.append(s)
@@ -122,35 +122,40 @@ def train():
     r_n = norm_array(np.array(r_list))
     a_n = norm_array(np.array(a_list))
     s_n = norm_array(np.array(s_list))
-
+    c_n = np.array(c_list)
     for i in trange(start, N_iters + 1):
         render_kwargs_train['network_rec'].train()
         render_kwargs_train['network_fn'].eval()
         img_i = np.random.choice(
             list(range(poses_labels.shape[0]))[::args.rec_step]
-        )  # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
+        )
+        k = 4
+        # Why? This does not guarantee that all images are used --> probably a weighted random would be better,
         # or removing from a temporary set as long as it's not empty
-        target_rec = torch.Tensor(labels[img_i]).to(device).unsqueeze(0).unsqueeze(0)
-        pts = torch.from_numpy(poses_labels[img_i]).to(device)
-        r, a, s, c = torch.from_numpy(r_n[img_i]).to(device), torch.from_numpy(a_n[img_i]).to(device), \
-        torch.from_numpy(s_n[img_i]).to(device), torch.from_numpy(c_list[img_i]).to(device)
+        target_rec = torch.Tensor(labels[img_i:img_i+4]).to(device).unsqueeze(0).permute(1, 2, 3, 0)
+        # pts = torch.from_numpy(poses_labels[img_i:img_i+8]).to(device)
+        r, a, s, c = torch.from_numpy(r_n[img_i:img_i+4]).to(device), torch.from_numpy(a_n[img_i:img_i+4]).to(device), \
+        torch.from_numpy(s_n[img_i:img_i+4]).to(device), torch.from_numpy(c_n[img_i:img_i+4]).to(device)
+
         theta = torch.concatenate([r, a, s], dim=-1)
         input_reconstruction = theta.squeeze()
         ret_reconstruction = render_kwargs_train["network_query_fn_rec"](input_reconstruction,
                                                                          render_kwargs_train["network_rec"])
-
         # rendering_output["confidence_maps"] *
         if args.confidence:
-            output = c * ret_reconstruction.permute(2, 1, 0)[None, ...]
+            output = c * ret_reconstruction
         else:
-            output = ret_reconstruction.permute(2, 1, 0)[None, ...]
+            output = ret_reconstruction
+        output = output.permute(0, 2, 1, 3)
         optimizer_rec.zero_grad()
         loss = dict()
         loss['bce'] = losses["bce"](output, target_rec)
         total_loss = loss["bce"]
         total_loss.backward()
         optimizer_rec.step()
-        rendering_output["rec"] = output
+        # print(output[0].shape)
+        # print(rendering_output["reflection_coeff"].shape)
+        rendering_output["rec"] = output[0].permute(2, 0, 1)[None,...]
         time0 = time.time()
         dt = time.time() - time0
         # NOTE: IMPORTANT!
@@ -160,6 +165,7 @@ def train():
         new_lrate = args.lrate * (decay_rate ** (i / decay_steps))
         for param_group in optimizer.param_groups:
             param_group["lr"] = new_lrate
+
     ################################
 
         if args.tensorboard:
@@ -198,7 +204,7 @@ def train():
             if i > args.rec_iter:
                 plt.subplot(3, 5, 14)
                 plt.title("Target rec")
-                plt.imshow(target_rec.detach().cpu().numpy()[0, 0].T)
+                plt.imshow(target_rec[0].permute(2, 0, 1)[None,...].detach().cpu().numpy()[0, 0].T)
 
                 plt.savefig(
                     os.path.join(rendering_path, "{:08d}.png".format(i + 1)),
