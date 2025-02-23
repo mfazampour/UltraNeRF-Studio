@@ -173,6 +173,13 @@ def spherify_poses(poses, bds):
     return poses_reset, new_poses, bds
 
 
+def load_rec_data(datadir):
+    labels = np.load(os.path.join(datadir, "labels.npy"))
+    poses_labels = np.load(os.path.join(datadir, "poses_labels.npy"))
+
+    labels = labels.astype(np.float32) / 255.0
+    return labels, poses_labels
+
 def load_us_data(datadir, confmap=False, pose_path=None, reconstruction=False, rec_eval=False):
     labels, poses_labels = None, None
     if reconstruction:

@@ -215,6 +215,121 @@ def batchify_rays(rays_flat, chunk=1024 * 32, **kwargs):
     return all_ret
 
 
+def create_nets_for_reconstruction(args, device, mode="train"):
+    """Instantiate NeRF's MLP model."""
+    embed_fn, input_ch = get_embedder(args.multires, device, args.i_embed)
+    if args.rec_only_theta or args.rec_only_occ:
+        embed_fn_rec, input_ch_rec = get_embedder(args.multires, device, args.i_embed, input_dim=3)
+    else:
+        embed_fn_rec, input_ch_rec = get_embedder(args.multires, device, args.i_embed, input_dim=6)
+    output_ch = args.output_ch
+    skips = [4]
+    model = NeRF(
+        D=args.netdepth,
+        W=args.netwidth,
+        input_ch=input_ch,
+        output_ch=output_ch,
+        skips=skips,
+    ).to(device)
+
+    grad_vars = list(model.parameters())
+
+    network_query_fn = lambda inputs, network_fn: run_network(
+        inputs, network_fn, embed_fn=embed_fn, netchunk=args.netchunk
+    )
+
+    network_query_fn_rec = lambda inputs, network_fn: run_network(
+        inputs, network_fn, embed_fn=embed_fn_rec, netchunk=args.netchunk
+    )
+    if args.reconstruction:
+        model_rec = Reconstruction(
+            D=args.netdepth,
+            W=args.netwidth,
+            input_ch= input_ch_rec,
+            output_ch=1,
+            skips=skips,
+        ).to(device)
+
+        for i, l in enumerate(model.pts_linears):
+            if i < 6:
+                for param in l.parameters():
+                    param.requires_grad = False
+
+        grad_vars_reg = list(model_rec.parameters())
+        optimizer_reg = torch.optim.Adam(params=grad_vars_reg, lr=args.lrate, betas=(0.9, 0.999))
+    else:
+        model_rec = None
+        optimizer_reg = None
+    # Create optimizer
+    optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
+
+
+    start = 0
+    basedir = args.basedir
+    expname = args.expname
+
+    ##########################
+
+    # Load checkpoints
+    if args.ft_path is not None and args.ft_path != "None":
+        ckpts = [args.ft_path]
+    else:
+        ckpts = [
+            os.path.join(basedir, expname, f)
+            for f in sorted(os.listdir(os.path.join(basedir, expname)))
+            if "tar" in f
+        ]
+
+    print("Found ckpts", ckpts)
+    if len(ckpts) > 0:
+        ckpt_path = ckpts[-1]
+        print("Reloading from", ckpt_path)
+        ckpt = torch.load(ckpt_path)
+
+        start = ckpt["global_step"]
+        optimizer_reg.load_state_dict(ckpt["optimizer_rec_state_dict"])
+
+        # remove paramerts "views_linears.0.weight", "views_linears.0.bias" from state_dict
+        # if exists, this is for compatibility with the old code
+
+        new_state_dict_rec = {}
+        for k, v in ckpt["network_rec_state_dict"].items():
+            if "views_linears.0" not in k:
+                new_state_dict_rec[k] = v
+        model_rec.load_state_dict(new_state_dict_rec)
+    ckpts_nerf = [
+        os.path.join(basedir, args.expname_nerf, f)
+        for f in sorted(os.listdir(os.path.join(basedir, args.expname_nerf)))
+        if "tar" in f
+    ]
+    nerf_weights = torch.load(ckpts_nerf[-1])
+    # Load NeRF model
+    new_state_dict = {}
+    for k, v in nerf_weights["network_fn_state_dict"].items():
+        if "views_linears.0" not in k:
+            new_state_dict[k] = v
+    model.load_state_dict(new_state_dict)
+
+
+    ##########################
+
+    render_kwargs_train = {
+        "network_query_fn": network_query_fn,
+        "network_query_fn_rec": network_query_fn_rec,
+        "N_samples": args.N_samples,
+        "network_fn": model,
+        "network_rec": model_rec
+    }
+
+    render_kwargs_test = {k: render_kwargs_train[k] for k in render_kwargs_train}
+    render_kwargs_test["perturb"] = False
+    render_kwargs_test["raw_noise_std"] = 0.0
+
+    return render_kwargs_train, render_kwargs_test, start, optimizer, optimizer_reg
+
+
+
+
 def create_nerf(args, device, mode="train"):
     """Instantiate NeRF's MLP model."""
     embed_fn, input_ch = get_embedder(args.multires, device, args.i_embed)

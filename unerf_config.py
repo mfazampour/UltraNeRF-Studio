@@ -5,6 +5,8 @@ def config_parser():
     parser = configargparse.ArgumentParser()
     parser.add_argument("--config", is_config_file=True, help="config file path")
     parser.add_argument("--expname", type=str, help="experiment name")
+    parser.add_argument("--expname_nerf", type=str, help="experiment name")
+    parser.add_argument("--nerf_weights", type=str, help="experiment name")
     parser.add_argument(
         "--basedir", type=str, default="./logs/", help="where to store ckpts and logs"
     )
