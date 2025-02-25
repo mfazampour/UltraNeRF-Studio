@@ -219,11 +219,13 @@ def train():
 
                 # rendering_output["confidence_maps"] *
                 if args.confidence:
-                    output = rendering_output["confidence_maps"] * ret_reconstruction.permute(2, 1, 0)[None, ...]
+                    output = ret_reconstruction.permute(2, 1, 0)[None, ...]
+                    losses["bce"] = BCELoss(rendering_output["confidence_maps"].detach().clone())
                 else:
                     output = ret_reconstruction.permute(2, 1, 0)[None, ...]
                 optimizer_rec.zero_grad()
                 loss = dict()
+
                 loss['bce'] = losses["bce"](output, target_rec)
                 total_loss = loss["bce"]
                 total_loss.backward()
