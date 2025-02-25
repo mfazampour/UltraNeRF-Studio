@@ -4,8 +4,6 @@ import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm  # Import tqdm for progress bar
-from skimage.measure import marching_cubes
-import trimesh
 import torch.nn.functional as F
 
 # 1. Load the occupancy data from .npy file
@@ -104,23 +102,23 @@ def train(model, dataloader, optimizer, criterion, num_epochs=100):
 occupancy_file = 'occupancy_13.npy'  # Replace with your .npy file path
 dataset = OccupancyDataset(occupancy_file)
 dataloader = DataLoader(dataset, batch_size=100*100*100, shuffle=True)
-def visualize_occupancy_with_marching_cubes(occupancy_output, grid_shape=None):
-    """
-    Visualize the occupancy network output using marching cubes for surface extraction.
-
-    Args:
-        occupancy_output (torch.Tensor): Output tensor from the occupancy network (flattened).
-        grid_shape (tuple): Shape of the original 3D occupancy grid (D, H, W).
-    """
-    # Reshape the network output back to a 3D occupancy grid
-    occupancy_grid = occupancy_output
-    # Apply marching cubes to extract the surface mesh (isosurface extraction)
-    verts, faces, _, _ = marching_cubes(occupancy_grid, level=0.5)  # 0.5 is the occupancy threshold
-    # Create the 3D mesh using trimesh
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-    # Show the mesh in 3D
-    mesh.show()
-visualize_occupancy_with_marching_cubes(dataset.occupancy_data.reshape((100, 100, 100)))
+# def visualize_occupancy_with_marching_cubes(occupancy_output, grid_shape=None):
+#     """
+#     Visualize the occupancy network output using marching cubes for surface extraction.
+#
+#     Args:
+#         occupancy_output (torch.Tensor): Output tensor from the occupancy network (flattened).
+#         grid_shape (tuple): Shape of the original 3D occupancy grid (D, H, W).
+#     """
+#     # Reshape the network output back to a 3D occupancy grid
+#     occupancy_grid = occupancy_output
+#     # Apply marching cubes to extract the surface mesh (isosurface extraction)
+#     verts, faces, _, _ = marching_cubes(occupancy_grid, level=0.5)  # 0.5 is the occupancy threshold
+#     # Create the 3D mesh using trimesh
+#     mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+#     # Show the mesh in 3D
+#     mesh.show()
+# visualize_occupancy_with_marching_cubes(dataset.occupancy_data.reshape((100, 100, 100)))
 # Get the shape of the input (flattened 3D grid)
 input_size = 3
 # Initialize the model, optimizer, and loss function
