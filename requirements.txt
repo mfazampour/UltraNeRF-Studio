@@ -24,6 +24,8 @@ tqdm
 open3d
 PyMCubes
 trimesh
+napari
+PyQt5
 
 # Testing
 pytest
