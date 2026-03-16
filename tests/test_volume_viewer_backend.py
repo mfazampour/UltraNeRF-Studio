@@ -1,7 +1,7 @@
 import numpy as np
 
 from visualization.sweep_volume import FusedSweepVolume
-from visualization.volume_viewer import build_volume_layer_config
+from visualization.volume_viewer import build_volume_layer_config, build_volume_layer_config_from_preset
 
 
 def make_fused_volume() -> FusedSweepVolume:
@@ -31,3 +31,14 @@ def test_build_volume_layer_config_maps_volume_metadata_to_napari_config():
     assert config.opacity == 0.7
     assert config.axis_labels == ("x_mm", "y_mm", "z_mm")
     assert config.contrast_limits == (0.0, 7.0)
+
+
+def test_build_volume_layer_config_from_preset_applies_named_preset():
+    fused = make_fused_volume()
+
+    config = build_volume_layer_config_from_preset(fused, preset_name="high_contrast", name="preset_volume")
+
+    assert config.name == "preset_volume"
+    assert config.rendering == "mip"
+    assert config.colormap == "inferno"
+    assert config.blending == "additive"

@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from visualization.sweep_volume import FusedSweepVolume
+from visualization.volume_presets import VolumePreset, get_volume_preset
 
 
 @dataclass(frozen=True)
@@ -57,11 +58,30 @@ def build_volume_layer_config(
     )
 
 
+def build_volume_layer_config_from_preset(
+    fused_volume: FusedSweepVolume,
+    *,
+    preset_name: str,
+    name: str = "sweep_volume",
+) -> VolumeLayerConfig:
+    """Build a napari layer config from a named volume preset."""
+    preset: VolumePreset = get_volume_preset(preset_name)
+    return build_volume_layer_config(
+        fused_volume,
+        name=name,
+        rendering=preset.rendering,
+        colormap=preset.colormap,
+        opacity=preset.opacity,
+        blending=preset.blending,
+    )
+
+
 def launch_basic_volume_viewer(
     fused_volume: FusedSweepVolume,
     *,
     viewer_title: str = "UltraNeRF Sweep Volume",
     show_axes: bool = True,
+    preset_name: str | None = None,
     layer_kwargs: dict[str, Any] | None = None,
 ):
     """Launch a basic 3D napari viewer for a fused sweep volume.
@@ -76,7 +96,11 @@ def launch_basic_volume_viewer(
             "napari is not installed. Install the visualization dependencies to launch the viewer."
         ) from exc
 
-    config = build_volume_layer_config(fused_volume)
+    config = (
+        build_volume_layer_config_from_preset(fused_volume, preset_name=preset_name)
+        if preset_name is not None
+        else build_volume_layer_config(fused_volume)
+    )
     kwargs = {
         "scale": config.scale,
         "translate": config.translate,
