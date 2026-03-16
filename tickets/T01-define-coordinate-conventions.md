@@ -26,8 +26,21 @@ NeRF probe rendering.
 ## Required Work
 
 1. Define the canonical world-space unit.
-   The recommended choice is meters, because the current loader already scales
-   pose translation from millimeters to meters.
+   The recommended choice for the visualization stack is millimeters, because:
+   - the scenes are spatially small
+   - medical imaging viewers typically operate in millimeters
+   - user-facing probe placement and volume inspection are easier to reason
+     about in millimeters than in very small meter-scale coordinates
+
+   This ticket should explicitly document the boundary between:
+   - the current training / rendering code paths, which already scale pose
+     translation from millimeters to meters in the loader
+   - the visualization layer, which should expose spatial quantities in
+     millimeters
+
+   If the NeRF runtime continues to expect meter-scale poses internally, this
+   ticket should define a single, explicit conversion point between the viewer
+   state and the model inference state.
 
 2. Define the canonical world-space axes.
    This should specify:
