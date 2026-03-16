@@ -31,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("soft_tissue", "high_contrast", "sparse_signal"),
         help="Initial volume visualization preset",
     )
+    parser.add_argument(
+        "--initial-pose-index",
+        type=int,
+        default=0,
+        help="Recorded pose index used to initialize the probe overlay",
+    )
     parser.add_argument("--no-gui", action="store_true", help="Prepare inputs and print a summary without launching napari")
     return parser
 
@@ -64,7 +70,7 @@ def main() -> int:
     if args.no_gui:
         return 0
 
-    viewer = launch_visualization_app(state)
+    _session = launch_visualization_app(state, initial_pose_index=args.initial_pose_index)
     import napari
 
     napari.run()

@@ -35,6 +35,14 @@ class VisualizationAppState:
     preset_name: str
 
 
+@dataclass
+class VisualizationLaunchSession:
+    """Live visualization session objects after a GUI launch."""
+
+    viewer: Any
+    ui_controller: Any
+
+
 def load_visualization_dataset(dataset_dir: str | Path) -> tuple[np.ndarray, np.ndarray]:
     """Load visualization inputs directly from disk in millimeters."""
     dataset_path = Path(dataset_dir)
@@ -121,10 +129,21 @@ def prepare_visualization_app(
     )
 
 
-def launch_visualization_app(state: VisualizationAppState):
-    """Launch the basic napari viewer from a prepared app state."""
-    return launch_basic_volume_viewer(
+def launch_visualization_app(
+    state: VisualizationAppState,
+    *,
+    initial_pose_index: int = 0,
+    render_controller: Any | None = None,
+) -> VisualizationLaunchSession:
+    """Launch the napari viewer and attach scene overlays."""
+    from visualization.napari_ui import VisualizationUIController
+
+    viewer = launch_basic_volume_viewer(
         state.fused_volume,
         viewer_title=f"UltraNeRF Sweep Volume: {state.dataset_dir.name}",
         preset_name=state.preset_name,
     )
+    ui_controller = VisualizationUIController(viewer, state, render_controller=render_controller)
+    safe_index = min(max(int(initial_pose_index), 0), state.poses_mm.shape[0] - 1)
+    ui_controller.initialize(state.poses_mm[safe_index])
+    return VisualizationLaunchSession(viewer=viewer, ui_controller=ui_controller)
