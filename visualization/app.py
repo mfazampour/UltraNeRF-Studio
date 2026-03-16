@@ -1,0 +1,130 @@
+"""Application orchestration for sweep visualization."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from visualization.sweep_volume import (
+    FusedSweepVolume,
+    compute_sweep_bounds_mm,
+    fuse_sweeps_to_volume,
+    volume_geometry_from_bounds_mm,
+)
+from visualization.trajectory import TrajectoryOverlay, build_trajectory_overlay
+from visualization.transforms import ProbeGeometry
+from visualization.volume_cache import cache_metadata_matches, load_fused_volume_cache, save_fused_volume_cache
+from visualization.volume_viewer import launch_basic_volume_viewer
+
+
+@dataclass
+class VisualizationAppState:
+    """Prepared visualization state independent of the GUI."""
+
+    dataset_dir: Path
+    fused_volume: FusedSweepVolume
+    trajectory: TrajectoryOverlay
+    cache_path: Path | None
+    cache_used: bool
+    images: np.ndarray
+    poses_mm: np.ndarray
+    probe_geometry: ProbeGeometry
+    preset_name: str
+
+
+def load_visualization_dataset(dataset_dir: str | Path) -> tuple[np.ndarray, np.ndarray]:
+    """Load visualization inputs directly from disk in millimeters."""
+    dataset_path = Path(dataset_dir)
+    images = np.load(dataset_path / "images.npy").astype(np.float32)
+    poses = np.load(dataset_path / "poses.npy").astype(np.float32)
+    return images, poses
+
+
+def build_or_load_fused_volume(
+    *,
+    dataset_dir: str | Path,
+    probe_geometry: ProbeGeometry,
+    spacing_mm: tuple[float, float, float],
+    pixel_stride: tuple[int, int],
+    cache_path: str | Path | None = None,
+) -> tuple[FusedSweepVolume, Path | None, bool, np.ndarray, np.ndarray]:
+    """Load a cached volume when possible, otherwise build and optionally cache it."""
+    images, poses_mm = load_visualization_dataset(dataset_dir)
+    dataset_path = Path(dataset_dir)
+    cache = Path(cache_path) if cache_path is not None else None
+    fusion_params = {"pixel_stride": list(pixel_stride), "spacing_mm": list(spacing_mm), "mode": "nearest"}
+    metadata = {
+        "dataset_id": str(dataset_path.resolve()),
+        "probe_geometry": {"width_mm": probe_geometry.width_mm, "depth_mm": probe_geometry.depth_mm},
+        "fusion_params": fusion_params,
+    }
+
+    if cache is not None and cache.exists():
+        loaded = load_fused_volume_cache(cache)
+        if cache_metadata_matches(
+            loaded.metadata,
+            dataset_id=metadata["dataset_id"],
+            probe_geometry=metadata["probe_geometry"],
+            fusion_params=metadata["fusion_params"],
+        ):
+            return loaded.fused_volume, cache, True, images, poses_mm
+
+    bounds_min_mm, bounds_max_mm = compute_sweep_bounds_mm(poses_mm, probe_geometry)
+    volume_geometry, volume_shape = volume_geometry_from_bounds_mm(bounds_min_mm, bounds_max_mm, spacing_mm)
+    fused = fuse_sweeps_to_volume(
+        images=images,
+        poses_probe_to_world=poses_mm,
+        probe_geometry=probe_geometry,
+        volume_geometry=volume_geometry,
+        volume_shape=volume_shape,
+        pixel_stride=pixel_stride,
+    )
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        save_fused_volume_cache(cache, fused, metadata=metadata)
+    return fused, cache, False, images, poses_mm
+
+
+def prepare_visualization_app(
+    *,
+    dataset_dir: str | Path,
+    probe_width_mm: float,
+    probe_depth_mm: float,
+    spacing_mm: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    pixel_stride: tuple[int, int] = (2, 2),
+    cache_path: str | Path | None = None,
+    preset_name: str = "soft_tissue",
+) -> VisualizationAppState:
+    """Prepare the fused volume and trajectory for the visualization app."""
+    probe_geometry = ProbeGeometry(width_mm=float(probe_width_mm), depth_mm=float(probe_depth_mm))
+    fused_volume, cache, cache_used, images, poses_mm = build_or_load_fused_volume(
+        dataset_dir=dataset_dir,
+        probe_geometry=probe_geometry,
+        spacing_mm=spacing_mm,
+        pixel_stride=pixel_stride,
+        cache_path=cache_path,
+    )
+    trajectory = build_trajectory_overlay(poses_mm)
+    return VisualizationAppState(
+        dataset_dir=Path(dataset_dir),
+        fused_volume=fused_volume,
+        trajectory=trajectory,
+        cache_path=cache,
+        cache_used=cache_used,
+        images=images,
+        poses_mm=poses_mm,
+        probe_geometry=probe_geometry,
+        preset_name=preset_name,
+    )
+
+
+def launch_visualization_app(state: VisualizationAppState):
+    """Launch the basic napari viewer from a prepared app state."""
+    return launch_basic_volume_viewer(
+        state.fused_volume,
+        viewer_title=f"UltraNeRF Sweep Volume: {state.dataset_dir.name}",
+        preset_name=state.preset_name,
+    )
