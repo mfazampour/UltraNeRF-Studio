@@ -30,6 +30,12 @@ The intended end state is:
 15. [T15 - Add CLI and Launch Entry Point](T15-add-cli-and-launch-entry-point.md)
 16. [T16 - Add Tests for Visualization Backend](T16-add-tests-for-visualization-backend.md)
 17. [T17 - Add Documentation and User Guide](T17-add-documentation-and-user-guide.md)
+18. [T18 - Add NeRF Checkpoint Loading to the Visualization CLI](T18-add-nerf-checkpoint-loading-to-visualization-cli.md)
+19. [T19 - Add a Rendered Output Panel to the Napari App](T19-add-rendered-output-panel-to-napari-app.md)
+20. [T20 - Add Interactive Probe Manipulation Controls](T20-add-interactive-probe-manipulation-controls.md)
+21. [T21 - Add Live Render Triggering and Throttling](T21-add-live-render-triggering-and-throttling.md)
+22. [T22 - Add a Recorded-Frame Comparison Panel](T22-add-recorded-frame-comparison-panel.md)
+23. [T23 - Add Workflow Docs and Manual QA for Interactive Rendering](T23-add-workflow-docs-and-manual-qa-for-interactive-rendering.md)
 
 ## Dependency Overview
 
@@ -50,6 +56,12 @@ The intended end state is:
 - T15 depends on T05 through T11, depending on what is exposed in the first release.
 - T16 should be added alongside T02, T03, T04, and T10, but can be tracked as a dedicated hardening ticket.
 - T17 should be updated continuously, but closes after the feature becomes usable.
+- T18 depends on T10 and T15.
+- T19 depends on T18.
+- T20 depends on T06, T08, T09, and T15.
+- T21 depends on T18, T19, and T20.
+- T22 depends on T12, T19, and T21.
+- T23 depends on T18 through T22.
 
 ## Suggested Milestones
 
@@ -81,3 +93,12 @@ The intended end state is:
 
 - T16
 - T17
+
+### Milestone 5: Interactive NeRF Viewer
+
+- T18
+- T19
+- T20
+- T21
+- T22
+- T23
