@@ -9,24 +9,22 @@ from rendering_utils.reflection import calculate_reflection_coefficient
 
 
 def cumsum_exclusive(tensor: torch.Tensor) -> torch.Tensor:
-    r"""Mimick functionality of tf.math.cumsum(..., exclusive=True), as it isn't available in PyTorch.
+    r"""Compute an exclusive cumulative sum along the last dimension.
 
     Args:
-      tensor (torch.Tensor): Tensor whose cumsum (cumulative product, see `torch.cumsum`) along dim=-1
-        is to be computed.
+      tensor (torch.Tensor): Tensor whose cumulative sum along dim=-1 is to be computed.
 
     Returns:
-      cumsum (torch.Tensor): cumsum of Tensor along dim=-1, mimiciking the functionality of
-        tf.math.cumsum(..., exclusive=True) (see `tf.math.cumsum` for details).
+      cumsum (torch.Tensor): Exclusive cumulative sum of `tensor` along dim=-1.
     """
     # TESTED
     # Only works for the last dimension (dim=-1) -> Why?
     dim = -1
-    # Compute regular cumsum first (this is equivalent to `tf.math.cumsum(..., exclusive=False)`).
+    # Compute the standard cumulative sum first.
     cumsum = torch.cumsum(tensor, dim)
     # "Roll" the elements along dimension 'dim' by 1 element.
     cumsum = torch.roll(cumsum, 1, dim)
-    # Replace the first element by "0" as this is what tf.cumsum(..., exclusive=True) does.
+    # Replace the first element by zero to make the sum exclusive.
     cumsum[..., 0] = 0.0
 
     return cumsum

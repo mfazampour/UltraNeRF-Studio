@@ -285,15 +285,14 @@ The main dependencies listed in `requirements.txt` are:
 - tqdm
 - opencv-python
 
-Some utility scripts also import extra packages that are not listed in `requirements.txt`, including:
+Some utility scripts also import extra packages that are not listed in the minimal upstream requirements, including:
 
 - `open3d`
 - `mcubes`
 - `imageio`
-- `tensorflow` for a comparison script in `tests/`
 - `trimesh`
 
-If you plan to use the reconstruction and export scripts, expect to install additional packages beyond the base requirements.
+If you plan to use the reconstruction and export scripts, expect to install additional packages beyond the minimal training stack.
 
 ## Caveats and current state
 

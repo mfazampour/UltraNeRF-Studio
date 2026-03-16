@@ -133,9 +133,8 @@ if __name__ == "__main__":
             else:
                 rec_list = rec
 
-            # Convert intensity_map to uint8 and save
-            # Intensity map is (H, W), we need to transpose to (W, H) if needed, but original code transposed.
-            # The original TF code did: tf.transpose(image), so we replicate that:
+            # Convert intensity_map to uint8 and save.
+            # Intensity maps are transposed here to match the saved image orientation.
     #         intensity_map = rendering_params["intensity_map"][0, 0]  # [H, W]
     #         intensity_map_transposed = intensity_map.T  # [W, H]
     #
@@ -170,8 +169,7 @@ if __name__ == "__main__":
     #                 rendering_params_save[key] = []
     #
     #         for key, value in rendering_params.items():
-    #             # Transpose value to match original TF code style
-    #             # Original code: tf.transpose(value)
+    #             # Transpose values to match the saved image orientation.
     #             val_t = value[0, 0].T  # [W,H]
     #             rendering_params_save[key].append(val_t.cpu().numpy())
     #

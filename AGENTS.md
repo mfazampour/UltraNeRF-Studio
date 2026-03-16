@@ -58,6 +58,7 @@ Treat these as more experimental or secondary:
 ## Repo-Specific Expectations
 
 - The renderer is ultrasound-specific. Do not assume standard NeRF semantics.
+- Keep the repository PyTorch-only. Do not introduce TensorFlow or dual-framework maintenance paths.
 - The active rendering path is wired through `render_us()` and `render_rays_us()`.
 - Baseline datasets are expected to use `.npy` arrays with filenames such as `images.npy` and `poses.npy`.
 - Reconstruction workflows may additionally expect `labels.npy` and `poses_labels.npy`.
