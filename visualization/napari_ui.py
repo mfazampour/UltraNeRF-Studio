@@ -175,7 +175,7 @@ class VisualizationUIController:
                 name="trajectory_centers",
                 size=4,
                 face_color="yellow",
-                edge_color="black",
+                border_color="black",
             )
         if "trajectory_axes" not in self._layers:
             self._layers["trajectory_axes"] = self.viewer.add_vectors(
@@ -197,7 +197,7 @@ class VisualizationUIController:
                     "name": "probe_origin",
                     "size": 8,
                     "face_color": "cyan",
-                    "edge_color": "black",
+                    "border_color": "black",
                 },
             ),
             "probe_axes": (
@@ -252,4 +252,3 @@ class VisualizationUIController:
                 self._layers[layer_name] = add_method(data, **kwargs)
             else:
                 layer.data = data
-
