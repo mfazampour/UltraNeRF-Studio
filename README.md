@@ -329,6 +329,7 @@ That sequence matches how the main workflow is assembled.
 Additional folder-level notes:
 
 - [`configs/README.md`](configs/README.md)
+- [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md)
 - [`scripts/README.md`](scripts/README.md)
 - [`slurm/README.md`](slurm/README.md)
 - [`tests/README.md`](tests/README.md)
