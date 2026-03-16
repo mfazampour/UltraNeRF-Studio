@@ -27,3 +27,6 @@ trimesh
 
 # Comparison / experimental scripts
 tensorflow
+
+# Testing
+pytest
