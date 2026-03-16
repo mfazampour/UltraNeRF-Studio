@@ -1,3 +1,13 @@
+"""Export reconstruction artifacts from a trained rendering-plus-label model.
+
+This script loads a saved training checkpoint, runs the trained PyTorch model on
+tracked ultrasound frames plus reconstruction labels, accumulates predicted
+occupied points, and post-processes them into point-cloud and mesh-friendly
+representations.
+
+It is primarily an offline analysis / export tool, not a training entry point.
+"""
+
 import argparse
 import os
 import pprint
@@ -41,6 +51,8 @@ def extract_mesh_from_sdf(sdf, voxel_size=0.01):
     mesh.triangles = o3d.utility.Vector3iVector(faces)
     mesh.compute_vertex_normals()
     return mesh
+
+
 def compute_sdf(occupied_points, grid_res=100, truncation=0.05, device="cuda"):
     """
     Computes a Signed Distance Function (SDF) from an occupancy grid.

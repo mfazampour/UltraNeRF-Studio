@@ -1,3 +1,15 @@
+"""Train the PyTorch UltraNeRF reconstruction branch alongside rendering.
+
+This script extends the baseline ultrasound renderer with a second PyTorch
+network that learns reconstruction or occupancy-style targets stored in
+``labels.npy`` and ``poses_labels.npy``. Depending on the configuration, it can
+alternate between image rendering supervision and reconstruction supervision, or
+train the reconstruction head from point samples alone.
+
+Use this entry point for reconstruction experiments rather than baseline image
+rendering.
+"""
+
 import os
 import time
 

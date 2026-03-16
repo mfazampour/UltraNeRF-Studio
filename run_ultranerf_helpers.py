@@ -1,3 +1,13 @@
+"""Legacy helper module for older PyTorch UltraNeRF utilities.
+
+This file contains a standalone collection of helper functions and model
+definitions that mirror older iterations of the codebase. It is kept for
+reference and compatibility, but the main training path in this repository uses
+``model.py``, ``nerf_utils.py``, and the ``run_*.py`` entry points instead.
+
+This is not the preferred entry point for new development.
+"""
+
 import io
 
 import matplotlib.pyplot as plt

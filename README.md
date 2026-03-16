@@ -25,6 +25,8 @@ This is not a standard NeRF that predicts RGB and density. The active training p
 
 The project is script-driven. There is no package layout or single library entry point; most workflows are top-level Python scripts.
 
+For a quick folder map, see [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md).
+
 ### Main training and evaluation scripts
 
 - `run_ultranerf.py`
@@ -323,3 +325,10 @@ If you are new to the codebase, read files in this order:
 8. `run_ultranerf_reconstruction.py`
 
 That sequence matches how the main workflow is assembled.
+
+Additional folder-level notes:
+
+- [`configs/README.md`](configs/README.md)
+- [`scripts/README.md`](scripts/README.md)
+- [`slurm/README.md`](slurm/README.md)
+- [`tests/README.md`](tests/README.md)

@@ -1,3 +1,14 @@
+"""Reconstruct geometry by querying the PyTorch reconstruction network on points.
+
+This offline script loads a trained reconstruction-capable checkpoint, evaluates
+the reconstruction network on a dense set of query points or a dense grid, and
+then turns the predicted occupancy field into point clouds or meshes for
+inspection.
+
+Compared with ``run_reconstruction.py``, this path focuses more directly on
+point-based or dense-grid reconstruction queries.
+"""
+
 import argparse
 import os
 import pprint
@@ -47,6 +58,7 @@ def denormalize_mesh(vertices, faces, min_vals, max_vals):
     denormalized_faces = faces
 
     return denormalized_vertices, denormalized_faces
+
 
 def denormalize_point_cloud(normalized_points, min_vals, max_vals):
     """

@@ -1,3 +1,13 @@
+"""Launch batches of noisy-pose UltraNeRF and BARF training experiments.
+
+This script is an experiment orchestrator rather than a model implementation. It
+enumerates predefined pose perturbation strengths, points each run at a matching
+``.npy`` pose file, and then executes ``run_barf.py`` and ``run_ultranerf.py``
+for each configuration.
+
+Use this when benchmarking pose robustness across synthetic perturbations.
+"""
+
 import argparse
 import os
 import subprocess

@@ -1,3 +1,16 @@
+"""Train the baseline PyTorch UltraNeRF ultrasound renderer.
+
+This is the main training entry point for the repository. It loads tracked
+ultrasound frames and poses, constructs the NeRF-style PyTorch model via
+``create_nerf()``, renders full ultrasound images from sampled 3D points, and
+optimizes image-space losses against the target frames.
+
+Outputs:
+- checkpoints under ``logs/<expname>/``
+- optional TensorBoard summaries
+- periodic rendered training visualizations
+"""
+
 import os
 import time
 

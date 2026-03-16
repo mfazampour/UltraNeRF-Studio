@@ -1,3 +1,16 @@
+"""Train the BARF-style PyTorch pose-refinement variant of UltraNeRF.
+
+This entry point extends the baseline ultrasound renderer with BARF-style
+coarse-to-fine positional encoding and learned per-frame pose refinement. It is
+used when the input probe poses are noisy or when joint scene-and-pose
+optimization is desired.
+
+Outputs:
+- checkpoints under ``logs/<expname>/``
+- optional TensorBoard summaries
+- periodic rendered visualizations during training
+"""
+
 import os
 import time
 
@@ -16,6 +29,7 @@ from nerf_utils import create_barf, img2mse, render_us
 torch.cuda.set_per_process_memory_fraction(0.95)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def config_parser():
 
