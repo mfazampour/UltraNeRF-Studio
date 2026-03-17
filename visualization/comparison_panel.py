@@ -45,8 +45,13 @@ def normalize_recorded_image_for_display(image: np.ndarray) -> np.ndarray:
 
 def format_comparison_metadata(comparison_payload: dict[str, Any]) -> str:
     """Create a short textual summary of the current comparison match."""
+    prefix = ""
+    if "matched_sweep_name" in comparison_payload:
+        prefix = f"{comparison_payload['matched_sweep_name']} | "
+    elif "matched_sweep_id" in comparison_payload:
+        prefix = f"{comparison_payload['matched_sweep_id']} | "
     return (
-        f"Frame {int(comparison_payload['matched_index'])} | "
+        f"{prefix}Frame {int(comparison_payload['matched_index'])} | "
         f"dT={float(comparison_payload['translation_distance_mm']):.2f} mm | "
         f"dR={float(comparison_payload['rotation_distance_deg']):.2f} deg"
     )

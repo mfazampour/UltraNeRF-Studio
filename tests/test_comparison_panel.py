@@ -19,3 +19,16 @@ def test_format_comparison_metadata_summarizes_distances():
     )
 
     assert metadata == "Frame 12 | dT=1.25 mm | dR=3.50 deg"
+
+
+def test_format_comparison_metadata_includes_matched_sweep_name_when_present():
+    metadata = format_comparison_metadata(
+        {
+            "matched_sweep_name": "Sweep B",
+            "matched_index": 7,
+            "translation_distance_mm": 2.0,
+            "rotation_distance_deg": 4.0,
+        }
+    )
+
+    assert metadata == "Sweep B | Frame 7 | dT=2.00 mm | dR=4.00 deg"

@@ -92,7 +92,7 @@ class MultiSweepSceneController:
 class MultiSweepControlsDockWidget:
     """Qt dock widget for multi-sweep state changes."""
 
-    def __init__(self, controller: MultiSweepSceneController):
+    def __init__(self, controller: MultiSweepSceneController, *, on_state_changed: Any | None = None):
         from PyQt5.QtWidgets import (
             QCheckBox,
             QComboBox,
@@ -105,6 +105,7 @@ class MultiSweepControlsDockWidget:
         )
 
         self.controller = controller
+        self.on_state_changed = on_state_changed
         self._updating = False
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -167,16 +168,22 @@ class MultiSweepControlsDockWidget:
         if self._updating:
             return
         self.controller.set_active_sweep(str(self.active_sweep_combo.currentData()))
+        if self.on_state_changed is not None:
+            self.on_state_changed(self.controller.state)
 
     def _handle_comparison_policy_change(self, _index: int) -> None:
         if self._updating:
             return
         self.controller.set_comparison_policy(str(self.comparison_policy_combo.currentData()))
+        if self.on_state_changed is not None:
+            self.on_state_changed(self.controller.state)
 
     def _handle_aggregate_change(self, state: int) -> None:
         if self._updating:
             return
         self.controller.set_show_aggregate_volume(bool(state))
+        if self.on_state_changed is not None:
+            self.on_state_changed(self.controller.state)
 
     def _handle_enabled_sweeps_change(self, _item: Any) -> None:
         if self._updating:
@@ -188,8 +195,14 @@ class MultiSweepControlsDockWidget:
                 enabled.append(str(item.data(1)))
         self.controller.set_enabled_sweeps(tuple(enabled))
         self.refresh()
+        if self.on_state_changed is not None:
+            self.on_state_changed(self.controller.state)
 
 
-def create_multi_sweep_controls(controller: MultiSweepSceneController) -> MultiSweepControlsDockWidget:
+def create_multi_sweep_controls(
+    controller: MultiSweepSceneController,
+    *,
+    on_state_changed: Any | None = None,
+) -> MultiSweepControlsDockWidget:
     """Create the Qt dock widget for multi-sweep controls."""
-    return MultiSweepControlsDockWidget(controller)
+    return MultiSweepControlsDockWidget(controller, on_state_changed=on_state_changed)

@@ -68,6 +68,11 @@ class ProbeControlsDockWidget:
         spin.setSingleStep(1.0)
         return spin
 
+    def set_num_frames(self, num_frames: int) -> None:
+        self.recorded_index_spin.setRange(0, max(int(num_frames) - 1, 0))
+        if self.recorded_index_spin.value() > max(int(num_frames) - 1, 0):
+            self.recorded_index_spin.setValue(max(int(num_frames) - 1, 0))
+
     def set_pose_values(
         self,
         *,
