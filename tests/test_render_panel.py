@@ -27,4 +27,16 @@ def test_normalize_image_for_display_returns_uint8():
 def test_format_render_metadata_reports_image_shape():
     metadata = format_render_metadata({"intensity_map": np.ones((1, 1, 4, 5), dtype=np.float32)})
 
-    assert metadata == "Image shape: (4, 5)"
+    assert metadata == "Image shape: (4, 5) | min=1 max=1"
+
+
+def test_normalize_image_for_display_handles_sparse_nonnegative_signal():
+    image = np.zeros((8, 8), dtype=np.float32)
+    image[3, 4] = 1e-6
+    image[6, 2] = 1.0
+
+    display = normalize_image_for_display(image)
+
+    assert display.dtype == np.uint8
+    assert display.max() == 255
+    assert display[6, 2] == 255

@@ -39,8 +39,18 @@ def normalize_image_for_display(image: np.ndarray) -> np.ndarray:
     """Normalize a render image into an 8-bit display buffer."""
     array = np.asarray(image, dtype=np.float32)
     if array.ndim == 2:
-        min_value = float(np.min(array))
-        max_value = float(np.max(array))
+        finite = np.isfinite(array)
+        if not np.any(finite):
+            return np.zeros_like(array, dtype=np.uint8)
+        valid = array[finite]
+        if float(np.min(valid)) >= 0.0:
+            array = np.log1p(array)
+            valid = array[finite]
+        min_value = float(np.percentile(valid, 1.0))
+        max_value = float(np.percentile(valid, 99.5))
+        if max_value <= min_value:
+            min_value = float(np.min(valid))
+            max_value = float(np.max(valid))
         if max_value <= min_value:
             return np.zeros_like(array, dtype=np.uint8)
         scaled = (array - min_value) / (max_value - min_value)
@@ -65,7 +75,10 @@ def format_render_metadata(rendered_output: dict[str, Any] | None) -> str:
         image = extract_render_image(rendered_output)
     except Exception:
         return "Render available"
-    return f"Image shape: {tuple(int(v) for v in image.shape)}"
+    return (
+        f"Image shape: {tuple(int(v) for v in image.shape)} | "
+        f"min={float(np.min(image)):.3g} max={float(np.max(image)):.3g}"
+    )
 
 
 class RenderOutputDockWidget:
