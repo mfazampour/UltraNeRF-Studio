@@ -1,0 +1,86 @@
+{
+  "probe_geometry": {
+    "width_mm": 80.0,
+    "depth_mm": 139.0
+  },
+  "active_sweep_id": "left1",
+  "comparison_policy": "all_enabled",
+  "metadata": {
+    "dataset_name": "spine_phantom",
+    "notes": "Probe geometry is an initial assumption based on existing repo defaults and must be verified before visualization or fusion is trusted."
+  },
+  "sweeps": [
+    {
+      "sweep_id": "left1",
+      "dataset_dir": "left1",
+      "display_name": "left1",
+      "color_rgb": [0.85, 0.55, 0.20],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "left1_1",
+      "dataset_dir": "left1_1",
+      "display_name": "left1_1",
+      "color_rgb": [0.90, 0.70, 0.30],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "left2",
+      "dataset_dir": "left2",
+      "display_name": "left2",
+      "color_rgb": [0.95, 0.85, 0.35],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "left3",
+      "dataset_dir": "left3",
+      "display_name": "left3",
+      "color_rgb": [0.65, 0.80, 0.30],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "left3_2",
+      "dataset_dir": "left3_2",
+      "display_name": "left3_2",
+      "color_rgb": [0.35, 0.75, 0.45],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "right1",
+      "dataset_dir": "right1",
+      "display_name": "right1",
+      "color_rgb": [0.20, 0.65, 0.75],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "right1_1",
+      "dataset_dir": "right1_1",
+      "display_name": "right1_1",
+      "color_rgb": [0.25, 0.50, 0.85],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "right3",
+      "dataset_dir": "right3",
+      "display_name": "right3",
+      "color_rgb": [0.45, 0.40, 0.85],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    },
+    {
+      "sweep_id": "right3_2",
+      "dataset_dir": "right3_2",
+      "display_name": "right3_2",
+      "color_rgb": [0.70, 0.35, 0.75],
+      "enabled": true,
+      "alignment_source": "assumed_from_training"
+    }
+  ]
+}
