@@ -15,6 +15,7 @@ from visualization.multi_sweep_loader import load_multi_sweep_scene_from_manifes
 from visualization.multi_sweep_ui import MultiSweepSceneController
 from visualization.multi_sweep_volume import MultiSweepFusionResult
 from visualization.render_controller import RenderController
+from visualization.sweep_volume import FusionDevice
 
 
 @dataclass
@@ -28,6 +29,7 @@ class MultiSweepVisualizationAppState:
     alignment_validation: AlignmentValidationResult
     preset_name: str
     cache_root: Path | None = None
+    fusion_device: FusionDevice = "auto"
 
     @property
     def probe_geometry(self):
@@ -106,11 +108,17 @@ def prepare_multi_sweep_visualization_app(
     pixel_stride: tuple[int, int] = (2, 2),
     preset_name: str = "soft_tissue",
     cache_root: str | Path | None = None,
+    fusion_device: FusionDevice = "auto",
 ) -> MultiSweepVisualizationAppState:
     """Load and validate a multi-sweep scene for visualization."""
     manifest = Path(manifest_path)
     scene = load_multi_sweep_scene_from_manifest(manifest)
-    scene_controller = MultiSweepSceneController(scene, spacing_mm=spacing_mm, pixel_stride=pixel_stride)
+    scene_controller = MultiSweepSceneController(
+        scene,
+        spacing_mm=spacing_mm,
+        pixel_stride=pixel_stride,
+        fusion_device=fusion_device,
+    )
     fusion_result = scene_controller.build_fusion_result()
     alignment_validation = validate_multi_sweep_alignment(scene)
     return MultiSweepVisualizationAppState(
@@ -121,6 +129,7 @@ def prepare_multi_sweep_visualization_app(
         alignment_validation=alignment_validation,
         preset_name=preset_name,
         cache_root=Path(cache_root) if cache_root is not None else None,
+        fusion_device=fusion_device,
     )
 
 

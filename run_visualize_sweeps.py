@@ -22,6 +22,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache-path", type=str, default=None, help="Optional path to a fused volume cache (.npz)")
     parser.add_argument("--probe-width-mm", type=float, required=True, help="Probe width in millimeters")
     parser.add_argument("--probe-depth-mm", type=float, required=True, help="Probe depth in millimeters")
+    parser.add_argument(
+        "--fusion-device",
+        type=str,
+        default="auto",
+        help="Device for sweep-to-volume fusion: auto, cpu, cuda, or cuda:<index>",
+    )
     parser.add_argument("--spacing-mm", type=float, nargs=3, default=(1.0, 1.0, 1.0), help="Voxel spacing in mm")
     parser.add_argument("--pixel-stride", type=int, nargs=2, default=(2, 2), help="Image sampling stride (row, col)")
     parser.add_argument(
@@ -91,6 +97,7 @@ def main() -> int:
         pixel_stride=tuple(int(v) for v in args.pixel_stride),
         cache_path=args.cache_path,
         preset_name=args.preset,
+        fusion_device=args.fusion_device,
     )
     nerf_config = None
     nerf_enabled = args.checkpoint_path is not None
@@ -124,6 +131,7 @@ def main() -> int:
         "cache_path": str(state.cache_path) if state.cache_path is not None else None,
         "cache_used": state.cache_used,
         "preset": state.preset_name,
+        "fusion_device": state.fusion_device,
         "num_frames": int(state.images.shape[0]),
         "nerf_enabled": nerf_enabled,
         "checkpoint_path": str(Path(args.checkpoint_path).resolve()) if args.checkpoint_path is not None else None,

@@ -18,6 +18,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Prepare and launch multi-sweep 3D visualization")
     parser.add_argument("--manifest-path", type=str, required=True, help="Path to a multi-sweep JSON manifest")
     parser.add_argument("--cache-root", type=str, default=None, help="Optional cache root for future multi-sweep caches")
+    parser.add_argument(
+        "--fusion-device",
+        type=str,
+        default="auto",
+        help="Device for sweep-to-volume fusion: auto, cpu, cuda, or cuda:<index>",
+    )
     parser.add_argument("--spacing-mm", type=float, nargs=3, default=(1.0, 1.0, 1.0), help="Voxel spacing in mm")
     parser.add_argument("--pixel-stride", type=int, nargs=2, default=(2, 2), help="Image sampling stride (row, col)")
     parser.add_argument(
@@ -60,6 +66,7 @@ def main() -> int:
         pixel_stride=tuple(int(v) for v in args.pixel_stride),
         preset_name=args.preset,
         cache_root=args.cache_root,
+        fusion_device=args.fusion_device,
     )
     nerf_enabled = args.checkpoint_path is not None
     render_shape = None
@@ -100,6 +107,7 @@ def main() -> int:
         "alignment_warnings": list(state.alignment_validation.warnings),
         "cache_root": str(state.cache_root) if state.cache_root is not None else None,
         "preset": state.preset_name,
+        "fusion_device": state.fusion_device,
         "nerf_enabled": nerf_enabled,
         "checkpoint_path": str(Path(args.checkpoint_path).resolve()) if nerf_enabled else None,
         "config_path": str(Path(args.config_path).resolve()) if nerf_enabled else None,

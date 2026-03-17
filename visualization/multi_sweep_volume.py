@@ -9,6 +9,7 @@ import numpy as np
 
 from visualization.multi_sweep import MultiSweepScene, SweepRecord
 from visualization.sweep_volume import (
+    FusionDevice,
     FusedSweepVolume,
     compute_sweep_bounds_mm,
     fuse_sweeps_to_volume,
@@ -64,6 +65,7 @@ def build_sweep_overlay(
     spacing_mm: tuple[float, float, float],
     pixel_stride: tuple[int, int] = (1, 1),
     axis_stride: int = 10,
+    fusion_device: FusionDevice = "auto",
 ) -> SweepVolumeOverlay:
     """Build one per-sweep fused volume plus trajectory overlay."""
     bounds_min_mm, bounds_max_mm = compute_sweep_bounds_mm(sweep.poses_mm, sweep.probe_geometry)
@@ -75,6 +77,7 @@ def build_sweep_overlay(
         volume_geometry=volume_geometry,
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
+        device=fusion_device,
     )
     trajectory = build_trajectory_overlay(sweep.poses_mm, axis_stride=axis_stride)
     return SweepVolumeOverlay(
@@ -94,6 +97,7 @@ def fuse_multi_sweep_scene(
     pixel_stride: tuple[int, int] = (1, 1),
     enabled_sweep_ids: Iterable[str] | None = None,
     axis_stride: int = 10,
+    fusion_device: FusionDevice = "auto",
 ) -> MultiSweepFusionResult:
     """Fuse several sweeps into one aggregate volume plus per-sweep overlays."""
     if enabled_sweep_ids is None:
@@ -118,6 +122,7 @@ def fuse_multi_sweep_scene(
                 spacing_mm=spacing_mm,
                 pixel_stride=pixel_stride,
                 axis_stride=axis_stride,
+                fusion_device=fusion_device,
             )
         )
         aggregate_images.append(sweep.images)
@@ -130,6 +135,7 @@ def fuse_multi_sweep_scene(
         volume_geometry=volume_geometry,
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
+        device=fusion_device,
     )
     return MultiSweepFusionResult(
         aggregate_volume=aggregate_volume,

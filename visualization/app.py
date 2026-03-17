@@ -10,6 +10,7 @@ import numpy as np
 
 from visualization.render_controller import RenderController, RenderTriggerMode
 from visualization.sweep_volume import (
+    FusionDevice,
     FusedSweepVolume,
     compute_sweep_bounds_mm,
     fuse_sweeps_to_volume,
@@ -34,6 +35,7 @@ class VisualizationAppState:
     poses_mm: np.ndarray
     probe_geometry: ProbeGeometry
     preset_name: str
+    fusion_device: FusionDevice
 
 
 @dataclass
@@ -72,12 +74,17 @@ def build_or_load_fused_volume(
     spacing_mm: tuple[float, float, float],
     pixel_stride: tuple[int, int],
     cache_path: str | Path | None = None,
+    fusion_device: FusionDevice = "auto",
 ) -> tuple[FusedSweepVolume, Path | None, bool, np.ndarray, np.ndarray]:
     """Load a cached volume when possible, otherwise build and optionally cache it."""
     images, poses_mm = load_visualization_dataset(dataset_dir)
     dataset_path = Path(dataset_dir)
     cache = Path(cache_path) if cache_path is not None else None
-    fusion_params = {"pixel_stride": list(pixel_stride), "spacing_mm": list(spacing_mm), "mode": "nearest"}
+    fusion_params = {
+        "pixel_stride": list(pixel_stride),
+        "spacing_mm": list(spacing_mm),
+        "mode": "nearest",
+    }
     metadata = {
         "dataset_id": str(dataset_path.resolve()),
         "probe_geometry": {"width_mm": probe_geometry.width_mm, "depth_mm": probe_geometry.depth_mm},
@@ -103,6 +110,7 @@ def build_or_load_fused_volume(
         volume_geometry=volume_geometry,
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
+        device=fusion_device,
     )
     if cache is not None:
         cache.parent.mkdir(parents=True, exist_ok=True)
@@ -171,6 +179,7 @@ def prepare_visualization_app(
     pixel_stride: tuple[int, int] = (2, 2),
     cache_path: str | Path | None = None,
     preset_name: str = "soft_tissue",
+    fusion_device: FusionDevice = "auto",
 ) -> VisualizationAppState:
     """Prepare the fused volume and trajectory for the visualization app."""
     probe_geometry = ProbeGeometry(width_mm=float(probe_width_mm), depth_mm=float(probe_depth_mm))
@@ -180,6 +189,7 @@ def prepare_visualization_app(
         spacing_mm=spacing_mm,
         pixel_stride=pixel_stride,
         cache_path=cache_path,
+        fusion_device=fusion_device,
     )
     trajectory = build_trajectory_overlay(poses_mm)
     return VisualizationAppState(
@@ -192,6 +202,7 @@ def prepare_visualization_app(
         poses_mm=poses_mm,
         probe_geometry=probe_geometry,
         preset_name=preset_name,
+        fusion_device=fusion_device,
     )
 
 

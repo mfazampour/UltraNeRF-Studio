@@ -11,6 +11,7 @@ from visualization.app import (
     prepare_visualization_app,
     resolve_render_image_shape,
 )
+from visualization.sweep_volume import fuse_sweeps_to_volume, resolve_fusion_device
 
 
 def make_dataset(tmp_path: Path):
@@ -72,6 +73,7 @@ def test_prepare_visualization_app_returns_volume_and_trajectory(tmp_path):
     assert state.fused_volume.scalar_volume.ndim == 3
     assert state.trajectory.centers_mm.shape[0] == poses.shape[0]
     assert state.preset_name == "soft_tissue"
+    assert state.fusion_device == "auto"
 
 
 def test_resolve_render_image_shape_uses_dataset_shape_and_overrides():
@@ -81,6 +83,36 @@ def test_resolve_render_image_shape_uses_dataset_shape_and_overrides():
     assert resolve_render_image_shape(images, render_height=6) == (6, 5)
     assert resolve_render_image_shape(images, render_width=7) == (4, 7)
     assert resolve_render_image_shape(images, render_height=8, render_width=9) == (8, 9)
+
+
+def test_resolve_fusion_device_accepts_cpu_and_auto():
+    assert resolve_fusion_device("cpu") == "cpu"
+    assert resolve_fusion_device("auto") in ("cpu", "cuda")
+
+
+def test_fuse_sweeps_to_volume_accepts_explicit_cpu_device():
+    images = np.array([[[1.0, 2.0], [3.0, 4.0]]], dtype=np.float32)
+    poses = np.stack([np.eye(4, dtype=np.float32)], axis=0)
+    probe_geometry = type("Probe", (), {"width_mm": 4.0, "depth_mm": 4.0})()
+    volume_geometry = type(
+        "Geometry",
+        (),
+        {
+            "origin_mm": np.array([-1.0, 1.0, 0.0], dtype=np.float32),
+            "spacing_mm": np.array([2.0, 2.0, 1.0], dtype=np.float32),
+        },
+    )()
+
+    fused = fuse_sweeps_to_volume(
+        images=images,
+        poses_probe_to_world=poses,
+        probe_geometry=probe_geometry,
+        volume_geometry=volume_geometry,
+        volume_shape=(2, 2, 1),
+        device="cpu",
+    )
+
+    assert fused.scalar_volume.shape == (2, 2, 1)
 
 
 def test_build_render_controller_uses_nerf_session_factory_and_trigger_mode(tmp_path):

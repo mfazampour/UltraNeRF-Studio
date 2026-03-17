@@ -7,6 +7,7 @@ from typing import Any
 
 from visualization.multi_sweep import MultiSweepScene
 from visualization.multi_sweep_volume import MultiSweepFusionResult, fuse_multi_sweep_scene
+from visualization.sweep_volume import FusionDevice
 
 
 @dataclass(frozen=True)
@@ -28,10 +29,12 @@ class MultiSweepSceneController:
         *,
         spacing_mm: tuple[float, float, float] = (1.0, 1.0, 1.0),
         pixel_stride: tuple[int, int] = (2, 2),
+        fusion_device: FusionDevice = "auto",
     ) -> None:
         self.scene = scene
         self.spacing_mm = tuple(float(v) for v in spacing_mm)
         self.pixel_stride = tuple(int(v) for v in pixel_stride)
+        self.fusion_device = str(fusion_device)
         self.state = MultiSweepViewerState(
             active_sweep_id=scene.active_sweep_id,
             enabled_sweep_ids=tuple(sweep.sweep_id for sweep in (scene.enabled_sweeps or scene.sweeps)),
@@ -86,6 +89,7 @@ class MultiSweepSceneController:
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
+            fusion_device=self.fusion_device,
         )
 
 

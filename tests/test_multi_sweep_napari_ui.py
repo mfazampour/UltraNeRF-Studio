@@ -101,6 +101,7 @@ def make_state():
         fusion_result=fusion_result,
         alignment_validation=validate_multi_sweep_alignment(scene),
         preset_name="soft_tissue",
+        fusion_device="cpu",
     )
 
 
