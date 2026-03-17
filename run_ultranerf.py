@@ -28,7 +28,8 @@ from load_us import load_us_data
 from nerf_utils import create_nerf, img2mse, render_us, compute_loss, compute_regularization
 from unerf_config import config_parser
 
-torch.cuda.set_per_process_memory_fraction(0.95)
+if torch.cuda.is_available():
+    torch.cuda.set_per_process_memory_fraction(0.95)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -237,5 +238,6 @@ def train():
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.float32)
-    torch.set_default_device("cuda")
+    if hasattr(torch, "set_default_device") and torch.cuda.is_available():
+        torch.set_default_device("cuda")
     train()
