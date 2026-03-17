@@ -2,7 +2,11 @@ import numpy as np
 
 from visualization.multi_sweep import MultiSweepScene, SweepRecord
 from visualization.multi_sweep_app import MultiSweepVisualizationAppState
-from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController, _color_to_hex
+from visualization.multi_sweep_napari_ui import (
+    MultiSweepVisualizationUIController,
+    _color_to_hex,
+    _compute_aggregate_contrast_limits,
+)
 from visualization.multi_sweep_ui import MultiSweepSceneController
 from visualization.multi_sweep_volume import fuse_multi_sweep_scene
 from visualization.render_controller import RenderController
@@ -107,6 +111,21 @@ def make_state():
 
 def test_color_to_hex_converts_normalized_rgb_tuple() -> None:
     assert _color_to_hex((1.0, 0.5, 0.0), default="#000000") == "#ff8000"
+
+
+def test_compute_aggregate_contrast_limits_suppresses_low_signal_background() -> None:
+    data = np.concatenate(
+        [
+            np.zeros(500, dtype=np.float32),
+            np.full(400, 0.01, dtype=np.float32),
+            np.linspace(0.5, 2.0, 100, dtype=np.float32),
+        ]
+    ).reshape(20, 10, 5)
+
+    lower, upper = _compute_aggregate_contrast_limits(data)
+
+    assert lower > 0.0
+    assert upper > lower
 
 
 def test_initialize_adds_multi_sweep_layers_and_probe() -> None:

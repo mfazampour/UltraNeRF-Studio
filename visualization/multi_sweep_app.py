@@ -143,7 +143,7 @@ def launch_multi_sweep_visualization_app(
     """Launch a napari multi-sweep session."""
     from visualization.comparison_panel import create_comparison_panel
     from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController
-    from visualization.multi_sweep_ui import create_multi_sweep_controls
+    from visualization.multi_sweep_ui import create_multi_sweep_controls, create_sweep_selection_controls
     from visualization.probe_controls import create_probe_controls
     from visualization.render_panel import create_render_panel
     from visualization.volume_viewer import launch_basic_volume_viewer
@@ -169,6 +169,13 @@ def launch_multi_sweep_visualization_app(
         )
         viewer.window.add_dock_widget(multi_sweep_controls.widget, area="left", name="Multi-Sweep Controls")
         ui_controller.attach_multi_sweep_controls(multi_sweep_controls)
+
+        sweep_selection_controls = create_sweep_selection_controls(
+            state.scene_controller,
+            on_apply=ui_controller.handle_multi_sweep_state_change,
+        )
+        viewer.window.add_dock_widget(sweep_selection_controls.widget, area="right", name="Sweep Selection")
+        ui_controller.attach_sweep_selection_controls(sweep_selection_controls)
 
         probe_controls = create_probe_controls(
             ui_controller,

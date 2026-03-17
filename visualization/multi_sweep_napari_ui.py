@@ -73,6 +73,24 @@ def _set_layer_visibility(layer: Any, visible: bool) -> None:
         setattr(layer, "visible", bool(visible))
 
 
+def _compute_aggregate_contrast_limits(volume_data: np.ndarray) -> tuple[float, float]:
+    """Return aggregate-specific contrast limits with strong low-signal suppression."""
+    data = np.asarray(volume_data, dtype=np.float32)
+    finite = data[np.isfinite(data)]
+    if finite.size == 0:
+        return (0.0, 1.0)
+    positive = finite[finite > 0.0]
+    values = positive if positive.size > 0 else finite
+    lower = float(np.percentile(values, 88.0))
+    upper = float(np.percentile(values, 99.7))
+    if upper <= lower:
+        lower = float(np.min(values))
+        upper = float(np.max(values))
+    if upper <= lower:
+        upper = lower + 1.0
+    return (lower, upper)
+
+
 @dataclass
 class MultiSweepSceneState:
     probe_pose_mm: np.ndarray
@@ -99,6 +117,7 @@ class MultiSweepVisualizationUIController:
         self.probe_controls: Any | None = None
         self.comparison_panel: Any | None = None
         self.multi_sweep_controls: Any | None = None
+        self.sweep_selection_controls: Any | None = None
 
     def attach_render_panel(self, render_panel: Any) -> None:
         self.render_panel = render_panel
@@ -114,6 +133,9 @@ class MultiSweepVisualizationUIController:
 
     def attach_multi_sweep_controls(self, multi_sweep_controls: Any) -> None:
         self.multi_sweep_controls = multi_sweep_controls
+
+    def attach_sweep_selection_controls(self, sweep_selection_controls: Any) -> None:
+        self.sweep_selection_controls = sweep_selection_controls
 
     def initialize(self, probe_pose_mm: np.ndarray | None = None) -> MultiSweepSceneState:
         if probe_pose_mm is None:
@@ -134,6 +156,7 @@ class MultiSweepVisualizationUIController:
             rendered_output=rendered_output,
         )
         self._refresh_probe_controls()
+        self._refresh_sweep_selection_controls()
         self._refresh_comparison_panel()
         self._refresh_render_panel()
         return self.state
@@ -146,6 +169,7 @@ class MultiSweepVisualizationUIController:
                 rendered_output=self.state.rendered_output or {},
             )
         self._refresh_probe_controls()
+        self._refresh_sweep_selection_controls()
         self._refresh_comparison_panel()
 
     def set_active_sweep(self, sweep_id: str) -> MultiSweepSceneState:
@@ -160,6 +184,7 @@ class MultiSweepVisualizationUIController:
             rendered_output=self.state.rendered_output or {},
         )
         self._refresh_probe_controls()
+        self._refresh_sweep_selection_controls()
         self._refresh_comparison_panel()
         return self.state
 
@@ -266,7 +291,9 @@ class MultiSweepVisualizationUIController:
             if hasattr(aggregate_layer, "translate"):
                 aggregate_layer.translate = aggregate_config.translate
         if hasattr(aggregate_layer, "opacity"):
-            aggregate_layer.opacity = min(float(aggregate_config.opacity), 0.16)
+            aggregate_layer.opacity = min(float(aggregate_config.opacity), 0.10)
+        if hasattr(aggregate_layer, "contrast_limits"):
+            aggregate_layer.contrast_limits = _compute_aggregate_contrast_limits(aggregate_config.data)
         _set_layer_visibility(aggregate_layer, state.show_aggregate_volume)
 
         visible_ids = set(fusion_result.enabled_sweep_ids)
@@ -462,6 +489,11 @@ class MultiSweepVisualizationUIController:
             roll_deg=roll_deg,
             recorded_index=recorded_index,
         )
+
+    def _refresh_sweep_selection_controls(self) -> None:
+        if self.sweep_selection_controls is None:
+            return
+        self.sweep_selection_controls.refresh()
 
     def _refresh_comparison_panel(self) -> None:
         if self.comparison_panel is None:

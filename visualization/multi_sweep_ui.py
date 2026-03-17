@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from visualization.multi_sweep import MultiSweepScene
-from visualization.multi_sweep_volume import MultiSweepFusionResult, fuse_multi_sweep_scene
+from visualization.multi_sweep_volume import MultiSweepFusionResult, SweepVolumeOverlay, build_sweep_overlay, fuse_multi_sweep_scene
 from visualization.sweep_volume import FusionDevice
 
 
@@ -35,7 +35,9 @@ class MultiSweepSceneController:
         self.spacing_mm = tuple(float(v) for v in spacing_mm)
         self.pixel_stride = tuple(int(v) for v in pixel_stride)
         self.fusion_device = str(fusion_device)
-        self._fusion_cache: dict[tuple[tuple[str, ...], bool], MultiSweepFusionResult] = {}
+        self._aggregate_fusion_cache: MultiSweepFusionResult | None = None
+        self._per_sweep_volume_cache: dict[str, SweepVolumeOverlay] = {}
+        self._trajectory_overlay_cache: dict[str, SweepVolumeOverlay] = {}
         self.state = MultiSweepViewerState(
             active_sweep_id=scene.active_sweep_id,
             enabled_sweep_ids=tuple(sweep.sweep_id for sweep in (scene.enabled_sweeps or scene.sweeps)),
@@ -85,27 +87,71 @@ class MultiSweepSceneController:
         return self.state
 
     def build_fusion_result(self) -> MultiSweepFusionResult:
-        include_per_sweep_volumes = not self.state.show_aggregate_volume
-        aggregate_sweep_ids = tuple(sweep.sweep_id for sweep in self.scene.sweeps)
-        selected_ids = aggregate_sweep_ids if self.state.show_aggregate_volume else self.state.enabled_sweep_ids
-        cache_key = (selected_ids, include_per_sweep_volumes)
-        cached = self._fusion_cache.get(cache_key)
+        aggregate = self._get_aggregate_fusion()
+        if self.state.show_aggregate_volume:
+            overlays = tuple(self._get_trajectory_overlay(sweep.sweep_id) for sweep in self.scene.sweeps)
+            return MultiSweepFusionResult(
+                aggregate_volume=aggregate.aggregate_volume,
+                sweep_overlays=overlays,
+                enabled_sweep_ids=self.state.enabled_sweep_ids,
+                bounds_min_mm=aggregate.bounds_min_mm,
+                bounds_max_mm=aggregate.bounds_max_mm,
+            )
+
+        overlays = tuple(self._get_per_sweep_overlay(sweep_id) for sweep_id in self.state.enabled_sweep_ids)
+        return MultiSweepFusionResult(
+            aggregate_volume=aggregate.aggregate_volume,
+            sweep_overlays=overlays,
+            enabled_sweep_ids=self.state.enabled_sweep_ids,
+            bounds_min_mm=aggregate.bounds_min_mm,
+            bounds_max_mm=aggregate.bounds_max_mm,
+        )
+
+    def _get_aggregate_fusion(self) -> MultiSweepFusionResult:
+        if self._aggregate_fusion_cache is None:
+            self._aggregate_fusion_cache = fuse_multi_sweep_scene(
+                self.scene,
+                spacing_mm=self.spacing_mm,
+                pixel_stride=self.pixel_stride,
+                enabled_sweep_ids=tuple(sweep.sweep_id for sweep in self.scene.sweeps),
+                fusion_device=self.fusion_device,
+                include_per_sweep_volumes=False,
+            )
+        return self._aggregate_fusion_cache
+
+    def _get_trajectory_overlay(self, sweep_id: str) -> SweepVolumeOverlay:
+        cached = self._trajectory_overlay_cache.get(sweep_id)
         if cached is not None:
             return cached
-        fused = fuse_multi_sweep_scene(
-            self.scene,
+        sweep = self.scene.get_sweep(sweep_id)
+        overlay = build_sweep_overlay(
+            sweep,
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
-            enabled_sweep_ids=selected_ids,
             fusion_device=self.fusion_device,
-            include_per_sweep_volumes=include_per_sweep_volumes,
+            include_volume=False,
         )
-        self._fusion_cache[cache_key] = fused
-        return fused
+        self._trajectory_overlay_cache[sweep_id] = overlay
+        return overlay
+
+    def _get_per_sweep_overlay(self, sweep_id: str) -> SweepVolumeOverlay:
+        cached = self._per_sweep_volume_cache.get(sweep_id)
+        if cached is not None:
+            return cached
+        sweep = self.scene.get_sweep(sweep_id)
+        overlay = build_sweep_overlay(
+            sweep,
+            spacing_mm=self.spacing_mm,
+            pixel_stride=self.pixel_stride,
+            fusion_device=self.fusion_device,
+            include_volume=True,
+        )
+        self._per_sweep_volume_cache[sweep_id] = overlay
+        return overlay
 
 
 class MultiSweepControlsDockWidget:
-    """Qt dock widget for multi-sweep state changes."""
+    """Qt dock widget for multi-sweep scene settings."""
 
     def __init__(self, controller: MultiSweepSceneController, *, on_state_changed: Any | None = None):
         from PyQt5.QtWidgets import (
@@ -113,8 +159,6 @@ class MultiSweepControlsDockWidget:
             QComboBox,
             QFormLayout,
             QLabel,
-            QListWidget,
-            QListWidgetItem,
             QScrollArea,
             QVBoxLayout,
             QWidget,
@@ -158,20 +202,9 @@ class MultiSweepControlsDockWidget:
         self.aggregate_checkbox = QCheckBox("Show Aggregate Volume")
         layout.addWidget(self.aggregate_checkbox)
 
-        self.enabled_sweeps_list = QListWidget()
-        self.enabled_sweeps_list.setMinimumHeight(180)
-        for sweep in controller.scene.sweeps:
-            item = QListWidgetItem(sweep.display_name or sweep.sweep_id)
-            item.setData(1, sweep.sweep_id)
-            item.setFlags(item.flags() | 16)
-            item.setCheckState(2 if sweep.sweep_id in controller.state.enabled_sweep_ids else 0)
-            self.enabled_sweeps_list.addItem(item)
-        layout.addWidget(self.enabled_sweeps_list)
-
         self.active_sweep_combo.currentIndexChanged.connect(self._handle_active_sweep_change)
         self.comparison_policy_combo.currentIndexChanged.connect(self._handle_comparison_policy_change)
         self.aggregate_checkbox.stateChanged.connect(self._handle_aggregate_change)
-        self.enabled_sweeps_list.itemChanged.connect(self._handle_enabled_sweeps_change)
 
         self.refresh()
 
@@ -186,10 +219,6 @@ class MultiSweepControlsDockWidget:
             if policy_index >= 0:
                 self.comparison_policy_combo.setCurrentIndex(policy_index)
             self.aggregate_checkbox.setChecked(state.show_aggregate_volume)
-            enabled_ids = set(state.enabled_sweep_ids)
-            for index in range(self.enabled_sweeps_list.count()):
-                item = self.enabled_sweeps_list.item(index)
-                item.setCheckState(2 if item.data(1) in enabled_ids else 0)
         finally:
             self._updating = False
 
@@ -214,18 +243,102 @@ class MultiSweepControlsDockWidget:
         if self.on_state_changed is not None:
             self.on_state_changed(self.controller.state)
 
-    def _handle_enabled_sweeps_change(self, _item: Any) -> None:
-        if self._updating:
-            return
+class SweepSelectionDockWidget:
+    """Qt dock widget for selecting which sweeps participate in per-sweep mode."""
+
+    def __init__(self, controller: MultiSweepSceneController, *, on_apply: Any | None = None):
+        from PyQt5.QtWidgets import (
+            QHBoxLayout,
+            QLabel,
+            QListWidget,
+            QListWidgetItem,
+            QPushButton,
+            QScrollArea,
+            QVBoxLayout,
+            QWidget,
+        )
+
+        self.controller = controller
+        self.on_apply = on_apply
+        self._updating = False
+        outer_widget = QWidget()
+        outer_layout = QVBoxLayout(outer_widget)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        outer_layout.addWidget(scroll_area)
+        self.widget = outer_widget
+
+        content_widget = QWidget()
+        content_widget.setMinimumWidth(280)
+        scroll_area.setWidget(content_widget)
+
+        layout = QVBoxLayout(content_widget)
+        layout.addWidget(QLabel("Sweep Selection"))
+        layout.addWidget(QLabel("Affects per-sweep mode and comparison after Apply."))
+
+        self.selection_summary_label = QLabel("")
+        layout.addWidget(self.selection_summary_label)
+
+        self.enabled_sweeps_list = QListWidget()
+        self.enabled_sweeps_list.setMinimumHeight(220)
+        for sweep in controller.scene.sweeps:
+            item = QListWidgetItem(sweep.display_name or sweep.sweep_id)
+            item.setData(1, sweep.sweep_id)
+            item.setFlags(item.flags() | 16)
+            item.setCheckState(2 if sweep.sweep_id in controller.state.enabled_sweep_ids else 0)
+            self.enabled_sweeps_list.addItem(item)
+        layout.addWidget(self.enabled_sweeps_list)
+
+        button_row = QHBoxLayout()
+        layout.addLayout(button_row)
+        self.apply_button = QPushButton("Apply Selection")
+        self.reset_button = QPushButton("Reset")
+        button_row.addWidget(self.apply_button)
+        button_row.addWidget(self.reset_button)
+
+        self.enabled_sweeps_list.itemChanged.connect(self._handle_selection_changed)
+        self.apply_button.clicked.connect(self._handle_apply)
+        self.reset_button.clicked.connect(self.refresh)
+
+        self.refresh()
+
+    def refresh(self) -> None:
+        enabled_ids = set(self.controller.state.enabled_sweep_ids)
+        self._updating = True
+        try:
+            for index in range(self.enabled_sweeps_list.count()):
+                item = self.enabled_sweeps_list.item(index)
+                item.setCheckState(2 if item.data(1) in enabled_ids else 0)
+            self._update_summary_label(pending=False)
+        finally:
+            self._updating = False
+
+    def _collect_checked_ids(self) -> tuple[str, ...]:
         enabled = []
         for index in range(self.enabled_sweeps_list.count()):
             item = self.enabled_sweeps_list.item(index)
             if item.checkState() == 2:
                 enabled.append(str(item.data(1)))
-        self.controller.set_enabled_sweeps(tuple(enabled))
-        self.refresh()
-        if self.on_state_changed is not None:
-            self.on_state_changed(self.controller.state)
+        return tuple(enabled)
+
+    def _update_summary_label(self, *, pending: bool) -> None:
+        checked = self._collect_checked_ids()
+        prefix = "Pending" if pending else "Active"
+        self.selection_summary_label.setText(f"{prefix} sweeps: {len(checked)} selected")
+
+    def _handle_selection_changed(self, _item: Any) -> None:
+        if self._updating:
+            return
+        self._update_summary_label(pending=True)
+
+    def _handle_apply(self) -> None:
+        enabled = self._collect_checked_ids()
+        self.controller.set_enabled_sweeps(enabled)
+        self._update_summary_label(pending=False)
+        if self.on_apply is not None:
+            self.on_apply(self.controller.state)
 
 
 def create_multi_sweep_controls(
@@ -235,3 +348,12 @@ def create_multi_sweep_controls(
 ) -> MultiSweepControlsDockWidget:
     """Create the Qt dock widget for multi-sweep controls."""
     return MultiSweepControlsDockWidget(controller, on_state_changed=on_state_changed)
+
+
+def create_sweep_selection_controls(
+    controller: MultiSweepSceneController,
+    *,
+    on_apply: Any | None = None,
+) -> SweepSelectionDockWidget:
+    """Create the Qt dock widget for sweep selection."""
+    return SweepSelectionDockWidget(controller, on_apply=on_apply)

@@ -186,6 +186,14 @@ def test_launch_multi_sweep_visualization_app_initializes_fake_viewer(monkeypatc
         def set_image(self, image):
             self.image = image
 
+    class FakeSweepSelectionControls:
+        def __init__(self):
+            self.widget = object()
+            self.refreshed = False
+
+        def refresh(self):
+            self.refreshed = True
+
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
@@ -196,6 +204,10 @@ def test_launch_multi_sweep_visualization_app_initializes_fake_viewer(monkeypatc
     monkeypatch.setattr(
         "visualization.multi_sweep_ui.create_multi_sweep_controls",
         lambda controller, on_state_changed=None: FakeMultiSweepControls(),
+    )
+    monkeypatch.setattr(
+        "visualization.multi_sweep_ui.create_sweep_selection_controls",
+        lambda controller, on_apply=None: FakeSweepSelectionControls(),
     )
     monkeypatch.setattr(
         "visualization.comparison_panel.create_comparison_panel",
