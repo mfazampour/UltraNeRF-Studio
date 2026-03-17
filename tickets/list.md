@@ -102,3 +102,50 @@ The intended end state is:
 - T21
 - T22
 - T23
+
+### Milestone 6: Multi-Sweep Visualization
+
+- T24
+- T25
+- T26
+- T27
+- T28
+- T29
+- T30
+- T31
+
+## Multi-Sweep Follow-Up Tickets
+
+The tickets below extend the single-sweep viewer to support multiple tracked
+acquisition sweeps captured from different angles.
+
+Important assumption:
+
+- if the NeRF was trained on the multi-sweep dataset successfully, the sweep
+  poses should already align in a common world frame in theory
+- even with that assumption, the visualization toolkit should explicitly check
+  cross-sweep alignment before presenting fused overlays or cross-sweep nearest
+  frame comparisons
+
+Recommended order:
+
+24. [T24 - Define the Multi-Sweep Data Model and Scene Contract](T24-define-multi-sweep-data-model-and-scene-contract.md)
+25. [T25 - Add Multi-Sweep Dataset Loading and Manifest Support](T25-add-multi-sweep-dataset-loading-and-manifest-support.md)
+26. [T26 - Add Cross-Sweep Alignment Validation](T26-add-cross-sweep-alignment-validation.md)
+27. [T27 - Add Per-Sweep World Transform Support](T27-add-per-sweep-world-transform-support.md)
+28. [T28 - Add Multi-Sweep Volume Fusion and Per-Sweep Overlays](T28-add-multi-sweep-volume-fusion-and-per-sweep-overlays.md)
+29. [T29 - Add Sweep-Aware Comparison and Probe Context](T29-add-sweep-aware-comparison-and-probe-context.md)
+30. [T30 - Add Multi-Sweep UI Controls and Viewer State Management](T30-add-multi-sweep-ui-controls-and-viewer-state-management.md)
+31. [T31 - Add Multi-Sweep Workflow Docs and Manual QA](T31-add-multi-sweep-workflow-docs-and-manual-qa.md)
+
+Additional dependency notes:
+
+- T24 is required before all other multi-sweep tickets.
+- T25 depends on T24.
+- T26 depends on T24 and T25.
+- T27 depends on T24 and should be implemented before any feature that assumes
+  optional external registration transforms.
+- T28 depends on T25, T26, and T27.
+- T29 depends on T25 and T27.
+- T30 depends on T28 and T29.
+- T31 depends on T24 through T30.
