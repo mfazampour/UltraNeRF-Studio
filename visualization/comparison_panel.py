@@ -6,14 +6,41 @@ from typing import Any
 
 import numpy as np
 
-from visualization.render_panel import normalize_image_for_display
-
-
 def extract_matched_image(comparison_payload: dict[str, Any]) -> np.ndarray:
     """Extract the nearest recorded frame image from a comparison payload."""
     if "matched_image" not in comparison_payload:
         raise KeyError("comparison_payload is missing matched_image")
     return np.asarray(comparison_payload["matched_image"], dtype=np.float32)
+
+
+def normalize_recorded_image_for_display(image: np.ndarray) -> np.ndarray:
+    """Normalize a recorded ultrasound frame into an 8-bit display buffer.
+
+    Recorded frames should preserve their original grayscale appearance. If the
+    image is already normalized to ``[0, 1]``, map that directly to ``[0, 255]``
+    without the aggressive contrast enhancement used for sparse NeRF renders.
+    """
+    array = np.asarray(image, dtype=np.float32)
+    if array.ndim != 2:
+        raise ValueError(f"Comparison panel expects a 2D grayscale image, got {array.shape}")
+
+    finite = np.isfinite(array)
+    if not np.any(finite):
+        return np.zeros_like(array, dtype=np.uint8)
+
+    valid = array[finite]
+    min_value = float(np.min(valid))
+    max_value = float(np.max(valid))
+
+    if min_value >= 0.0 and max_value <= 1.0:
+        scaled = np.clip(array, 0.0, 1.0) * 255.0
+        return np.round(scaled).astype(np.uint8)
+
+    if max_value <= min_value:
+        return np.zeros_like(array, dtype=np.uint8)
+
+    scaled = (array - min_value) / (max_value - min_value)
+    return np.clip(np.round(scaled * 255.0), 0, 255).astype(np.uint8)
 
 
 def format_comparison_metadata(comparison_payload: dict[str, Any]) -> str:
@@ -54,7 +81,7 @@ class ComparisonDockWidget:
         self.metadata_label.setText(str(text))
 
     def set_image(self, image: np.ndarray) -> None:
-        display_buffer = normalize_image_for_display(image)
+        display_buffer = normalize_recorded_image_for_display(image)
         from PyQt5.QtGui import QImage, QPixmap
 
         if display_buffer.ndim != 2:

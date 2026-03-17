@@ -7,6 +7,7 @@ from visualization.comparison import (
     rotation_distance_deg,
     translation_distance_mm,
 )
+from visualization.comparison_panel import normalize_recorded_image_for_display
 
 
 def translation_pose(tx: float, ty: float, tz: float) -> np.ndarray:
@@ -87,3 +88,22 @@ def test_build_comparison_payload_returns_matched_image_and_pose_metadata():
     assert np.allclose(payload["matched_image"], np.ones((2, 2), dtype=np.float32))
     assert np.isclose(payload["translation_distance_mm"], 1.0)
     assert np.isclose(payload["rotation_distance_deg"], 0.0)
+
+
+def test_normalize_recorded_image_for_display_preserves_unit_interval_brightness():
+    image = np.array([[0.0, 0.25], [0.5, 1.0]], dtype=np.float32)
+
+    display = normalize_recorded_image_for_display(image)
+
+    assert display.dtype == np.uint8
+    assert np.array_equal(display, np.array([[0, 64], [128, 255]], dtype=np.uint8))
+
+
+def test_normalize_recorded_image_for_display_falls_back_to_linear_rescale_outside_unit_interval():
+    image = np.array([[10.0, 20.0], [30.0, 40.0]], dtype=np.float32)
+
+    display = normalize_recorded_image_for_display(image)
+
+    assert display.dtype == np.uint8
+    assert display.min() == 0
+    assert display.max() == 255
