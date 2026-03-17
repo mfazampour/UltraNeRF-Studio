@@ -15,6 +15,11 @@ AlignmentSource = str
 ComparisonPolicy = str
 
 
+def identity_pose_mm() -> np.ndarray:
+    """Return an identity 4x4 pose in millimeters."""
+    return np.eye(4, dtype=np.float32)
+
+
 def _normalize_color_rgb(color_rgb: tuple[float, float, float] | None) -> tuple[float, float, float] | None:
     if color_rgb is None:
         return None
@@ -44,6 +49,18 @@ def validate_sweep_images_and_poses(images: np.ndarray, poses_mm: np.ndarray) ->
     return image_array, normalized_poses
 
 
+def apply_world_transform_to_poses(
+    poses_mm: np.ndarray,
+    world_transform_mm: np.ndarray,
+) -> np.ndarray:
+    """Apply a sweep-level world transform to a pose batch."""
+    normalized_poses = np.asarray(poses_mm, dtype=np.float32)
+    if normalized_poses.ndim != 3:
+        raise ValueError("poses_mm must have shape (N, 4, 4)")
+    transform = ensure_pose_matrix(world_transform_mm).astype(np.float32)
+    return np.einsum("ij,njk->nik", transform, normalized_poses).astype(np.float32)
+
+
 @dataclass(frozen=True)
 class SweepRecord:
     """One tracked ultrasound sweep that participates in a shared scene."""
@@ -52,20 +69,26 @@ class SweepRecord:
     images: np.ndarray
     poses_mm: np.ndarray
     probe_geometry: ProbeGeometry
+    world_transform_mm: np.ndarray = field(default_factory=identity_pose_mm)
     dataset_dir: Path | None = None
     display_name: str | None = None
     color_rgb: tuple[float, float, float] | None = None
     enabled: bool = True
     alignment_source: AlignmentSource = "assumed_from_training"
     metadata: dict[str, Any] = field(default_factory=dict)
+    raw_poses_mm: np.ndarray = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.sweep_id:
             raise ValueError("sweep_id must be non-empty")
 
-        images, poses = validate_sweep_images_and_poses(self.images, self.poses_mm)
+        images, raw_poses = validate_sweep_images_and_poses(self.images, self.poses_mm)
+        world_transform = ensure_pose_matrix(self.world_transform_mm).astype(np.float32)
+        transformed_poses = apply_world_transform_to_poses(raw_poses, world_transform)
         object.__setattr__(self, "images", images)
-        object.__setattr__(self, "poses_mm", poses)
+        object.__setattr__(self, "raw_poses_mm", raw_poses)
+        object.__setattr__(self, "poses_mm", transformed_poses)
+        object.__setattr__(self, "world_transform_mm", world_transform)
         object.__setattr__(self, "dataset_dir", Path(self.dataset_dir) if self.dataset_dir is not None else None)
         object.__setattr__(self, "display_name", self.display_name or self.sweep_id)
         object.__setattr__(self, "color_rgb", _normalize_color_rgb(self.color_rgb))
@@ -79,6 +102,33 @@ class SweepRecord:
     @property
     def image_shape(self) -> tuple[int, int]:
         return (int(self.images.shape[1]), int(self.images.shape[2]))
+
+    @property
+    def has_identity_world_transform(self) -> bool:
+        return bool(np.allclose(self.world_transform_mm, identity_pose_mm()))
+
+    def with_world_transform(
+        self,
+        world_transform_mm: np.ndarray,
+        *,
+        alignment_source: str | None = None,
+    ) -> "SweepRecord":
+        new_alignment_source = alignment_source
+        if new_alignment_source is None and not np.allclose(world_transform_mm, identity_pose_mm()):
+            new_alignment_source = "externally_registered"
+        return SweepRecord(
+            sweep_id=self.sweep_id,
+            images=self.images,
+            poses_mm=self.raw_poses_mm,
+            probe_geometry=self.probe_geometry,
+            world_transform_mm=world_transform_mm,
+            dataset_dir=self.dataset_dir,
+            display_name=self.display_name,
+            color_rgb=self.color_rgb,
+            enabled=self.enabled,
+            alignment_source=new_alignment_source or self.alignment_source,
+            metadata=self.metadata,
+        )
 
 
 @dataclass(frozen=True)

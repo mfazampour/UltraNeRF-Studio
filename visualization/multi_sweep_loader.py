@@ -50,6 +50,7 @@ def load_sweep_record(
     color_rgb: tuple[float, float, float] | None = None,
     enabled: bool = True,
     alignment_source: str = "assumed_from_training",
+    world_transform_mm: np.ndarray | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> SweepRecord:
     """Load one sweep from disk into a structured record."""
@@ -65,6 +66,7 @@ def load_sweep_record(
         images=images,
         poses_mm=poses_mm,
         probe_geometry=probe_geometry,
+        world_transform_mm=world_transform_mm if world_transform_mm is not None else np.eye(4, dtype=np.float32),
         color_rgb=color_rgb,
         enabled=enabled,
         alignment_source=alignment_source,
@@ -100,6 +102,7 @@ def load_multi_sweep_scene_from_manifest(
                 color_rgb=tuple(entry["color_rgb"]) if entry.get("color_rgb") is not None else None,
                 enabled=bool(entry.get("enabled", True)),
                 alignment_source=str(entry.get("alignment_source", "assumed_from_training")),
+                world_transform_mm=resolved_transform,
                 metadata=entry_metadata,
             )
         )

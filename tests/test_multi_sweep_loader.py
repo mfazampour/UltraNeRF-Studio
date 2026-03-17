@@ -73,6 +73,7 @@ def test_load_multi_sweep_scene_from_manifest_supports_inline_metadata_and_trans
     assert scene.active_sweep.color_rgb == (0.2, 0.4, 0.6)
     assert scene.active_sweep.metadata["angle_deg"] == 30
     assert np.allclose(scene.active_sweep.metadata["world_transform_mm"], np.eye(4, dtype=np.float32))
+    assert np.allclose(scene.active_sweep.world_transform_mm, np.eye(4, dtype=np.float32))
 
 
 def test_load_multi_sweep_scene_from_directory_discovers_subdirectories(tmp_path: Path) -> None:

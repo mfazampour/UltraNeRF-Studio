@@ -3,7 +3,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from visualization.multi_sweep import MultiSweepScene, SweepRecord, validate_sweep_images_and_poses
+from visualization.multi_sweep import (
+    MultiSweepScene,
+    SweepRecord,
+    apply_world_transform_to_poses,
+    validate_sweep_images_and_poses,
+)
 from visualization.transforms import ProbeGeometry
 
 
@@ -45,6 +50,8 @@ def test_sweep_record_normalizes_metadata_and_defaults() -> None:
     assert sweep.dataset_dir == Path("/tmp/example")
     assert sweep.color_rgb == (0.1, 0.2, 0.3)
     assert sweep.alignment_source == "assumed_from_training"
+    assert np.allclose(sweep.raw_poses_mm, make_poses())
+    assert np.allclose(sweep.poses_mm, make_poses())
 
 
 def test_multi_sweep_scene_tracks_active_and_enabled_sweeps() -> None:
@@ -79,3 +86,48 @@ def test_sweep_record_rejects_invalid_color_range() -> None:
             probe_geometry=ProbeGeometry(width_mm=80.0, depth_mm=139.0),
             color_rgb=(1.5, 0.0, 0.0),
         )
+
+
+def test_apply_world_transform_to_poses_left_multiplies_pose_batch() -> None:
+    poses = make_poses()
+    transform = np.eye(4, dtype=np.float32)
+    transform[1, 3] = 5.0
+
+    transformed = apply_world_transform_to_poses(poses, transform)
+
+    assert np.allclose(transformed[:, 0, 3], poses[:, 0, 3])
+    assert np.allclose(transformed[:, 1, 3], np.full(poses.shape[0], 5.0, dtype=np.float32))
+
+
+def test_sweep_record_applies_world_transform_and_preserves_raw_poses() -> None:
+    transform = np.eye(4, dtype=np.float32)
+    transform[2, 3] = 12.0
+
+    sweep = SweepRecord(
+        sweep_id="registered",
+        images=make_images(),
+        poses_mm=make_poses(),
+        probe_geometry=ProbeGeometry(width_mm=80.0, depth_mm=139.0),
+        world_transform_mm=transform,
+    )
+
+    assert sweep.has_identity_world_transform is False
+    assert np.allclose(sweep.raw_poses_mm[:, 0, 3], np.array([0.0, 1.0, 2.0], dtype=np.float32))
+    assert np.allclose(sweep.poses_mm[:, 2, 3], np.full(3, 12.0, dtype=np.float32))
+
+
+def test_with_world_transform_rebuilds_transformed_pose_batch() -> None:
+    sweep = SweepRecord(
+        sweep_id="base",
+        images=make_images(),
+        poses_mm=make_poses(),
+        probe_geometry=ProbeGeometry(width_mm=80.0, depth_mm=139.0),
+    )
+    transform = np.eye(4, dtype=np.float32)
+    transform[0, 3] = 100.0
+
+    transformed = sweep.with_world_transform(transform)
+
+    assert transformed.alignment_source == "externally_registered"
+    assert np.allclose(transformed.raw_poses_mm, sweep.raw_poses_mm)
+    assert np.allclose(transformed.poses_mm[:, 0, 3], np.array([100.0, 101.0, 102.0], dtype=np.float32))
