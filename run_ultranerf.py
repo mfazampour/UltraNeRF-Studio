@@ -11,6 +11,7 @@ Outputs:
 - periodic rendered training visualizations
 """
 
+import inspect
 import os
 import time
 
@@ -123,14 +124,18 @@ def train():
     # Losses
     ssim_weight = args.ssim_lambda
     l2_weight = 1.0 - ssim_weight
-    ssim_loss = SSIMLoss(
-        spatial_dims=2,
-        data_range=1.0,
-        kernel_type="gaussian",
-        win_size=args.ssim_filter_size,
-        k1=0.01,
-        k2=0.1,
-    )
+    ssim_kwargs = {
+        "spatial_dims": 2,
+        "win_size": args.ssim_filter_size,
+        "k1": 0.01,
+        "k2": 0.1,
+    }
+    ssim_signature = inspect.signature(SSIMLoss)
+    if "data_range" in ssim_signature.parameters:
+        ssim_kwargs["data_range"] = 1.0
+    if "kernel_type" in ssim_signature.parameters:
+        ssim_kwargs["kernel_type"] = "gaussian"
+    ssim_loss = SSIMLoss(**ssim_kwargs)
     losses = {"l2": img2mse,
               "ssim": ssim_loss,
               "lncc": LocalNormalizedCrossCorrelationLoss(spatial_dims=2)}
