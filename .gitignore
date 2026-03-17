@@ -41,3 +41,5 @@ output_maps_*/
 # Local environment files
 .env
 .env.*
+
+data/spine_phantom
