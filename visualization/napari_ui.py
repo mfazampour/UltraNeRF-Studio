@@ -84,6 +84,7 @@ class VisualizationUIController:
         self._layers: dict[str, Any] = {}
         self.render_panel: Any | None = None
         self.probe_controls: Any | None = None
+        self.comparison_panel: Any | None = None
 
     def attach_render_panel(self, render_panel: Any) -> None:
         """Attach an optional render panel to receive render-status updates."""
@@ -94,6 +95,11 @@ class VisualizationUIController:
         """Attach an optional probe-controls panel to receive pose updates."""
         self.probe_controls = probe_controls
         self._refresh_probe_controls()
+
+    def attach_comparison_panel(self, comparison_panel: Any) -> None:
+        """Attach an optional nearest-frame comparison panel."""
+        self.comparison_panel = comparison_panel
+        self._refresh_comparison_panel()
 
     def initialize(self, probe_pose_mm: np.ndarray | None = None) -> SceneState:
         """Add trajectory and probe overlays to the viewer."""
@@ -127,6 +133,7 @@ class VisualizationUIController:
         )
         self._refresh_render_panel()
         self._refresh_probe_controls()
+        self._refresh_comparison_panel()
         return self.state
 
     def set_probe_pose(self, probe_pose_mm: np.ndarray) -> SceneState:
@@ -154,6 +161,7 @@ class VisualizationUIController:
         )
         self._refresh_render_panel()
         self._refresh_probe_controls()
+        self._refresh_comparison_panel()
         return self.state
 
     def set_probe_to_recorded_pose(self, index: int) -> SceneState:
@@ -200,6 +208,7 @@ class VisualizationUIController:
             recorded_poses_mm=self.app_state.poses_mm,
         )
         self._refresh_render_panel()
+        self._refresh_comparison_panel()
         return output
 
     def _add_trajectory_layers(self) -> None:
@@ -334,3 +343,16 @@ class VisualizationUIController:
             roll_deg=roll_deg,
             recorded_index=recorded_index,
         )
+
+    def _refresh_comparison_panel(self) -> None:
+        if self.comparison_panel is None:
+            return
+        if self.state is None:
+            self.comparison_panel.set_status("No comparison available")
+            self.comparison_panel.set_metadata("")
+            return
+        from visualization.comparison_panel import extract_matched_image, format_comparison_metadata
+
+        self.comparison_panel.set_status("Comparison ready")
+        self.comparison_panel.set_metadata(format_comparison_metadata(self.state.comparison_payload))
+        self.comparison_panel.set_image(extract_matched_image(self.state.comparison_payload))

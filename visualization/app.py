@@ -215,11 +215,15 @@ def launch_visualization_app(
     )
     ui_controller = VisualizationUIController(viewer, state, render_controller=render_controller)
     if render_controller is not None and hasattr(viewer, "window"):
+        from visualization.comparison_panel import create_comparison_panel
         from visualization.render_panel import create_render_panel
 
         render_panel = create_render_panel(ui_controller)
         viewer.window.add_dock_widget(render_panel.widget, area="right", name="NeRF Render")
         ui_controller.attach_render_panel(render_panel)
+        comparison_panel = create_comparison_panel()
+        viewer.window.add_dock_widget(comparison_panel.widget, area="right", name="Nearest Recorded Frame")
+        ui_controller.attach_comparison_panel(comparison_panel)
     if hasattr(viewer, "window"):
         from visualization.probe_controls import create_probe_controls
 

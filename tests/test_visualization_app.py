@@ -303,6 +303,19 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
         def set_pose_values(self, **kwargs):
             self.values = kwargs
 
+    class FakeComparisonPanel:
+        def __init__(self):
+            self.widget = object()
+
+        def set_status(self, text):
+            self.status = text
+
+        def set_metadata(self, text):
+            self.metadata = text
+
+        def set_image(self, image):
+            self.image = image
+
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
@@ -315,6 +328,7 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
     )
     monkeypatch.setattr("visualization.render_panel.create_render_panel", lambda ui_controller: FakeRenderPanel(ui_controller))
     monkeypatch.setattr("visualization.probe_controls.create_probe_controls", lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames))
+    monkeypatch.setattr("visualization.comparison_panel.create_comparison_panel", lambda: FakeComparisonPanel())
 
     session = launch_visualization_app(
         state,
@@ -331,3 +345,4 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
     assert session.render_controller.trigger_mode == "manual"
     assert session.ui_controller.render_panel is not None
     assert session.ui_controller.probe_controls is not None
+    assert session.ui_controller.comparison_panel is not None

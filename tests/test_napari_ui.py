@@ -68,6 +68,22 @@ class FakeProbeControls:
         self.values = dict(kwargs)
 
 
+class FakeComparisonPanel:
+    def __init__(self):
+        self.status = None
+        self.metadata = None
+        self.image = None
+
+    def set_status(self, text):
+        self.status = text
+
+    def set_metadata(self, text):
+        self.metadata = text
+
+    def set_image(self, image):
+        self.image = np.asarray(image)
+
+
 def make_app_state():
     images = np.arange(3 * 4 * 5, dtype=np.float32).reshape(3, 4, 5)
     poses = np.stack([np.eye(4, dtype=np.float32) for _ in range(3)], axis=0)
@@ -181,3 +197,20 @@ def test_probe_controls_receive_pose_updates_and_can_snap_to_recorded_pose():
 
     controller.snap_probe_to_nearest_recorded_pose()
     assert np.allclose(controller.state.probe_pose_mm[:3, 3], [10.0, 0.0, 0.0])
+
+
+def test_comparison_panel_receives_nearest_recorded_frame_updates():
+    state = make_app_state()
+    viewer = FakeViewer()
+    controller = VisualizationUIController(viewer, state)
+    comparison_panel = FakeComparisonPanel()
+    controller.attach_comparison_panel(comparison_panel)
+    controller.initialize()
+
+    assert comparison_panel.status == "Comparison ready"
+    assert comparison_panel.metadata == "Frame 0 | dT=0.00 mm | dR=0.00 deg"
+    assert comparison_panel.image.shape == (4, 5)
+
+    controller.set_probe_to_recorded_pose(1)
+
+    assert comparison_panel.metadata.startswith("Frame 1 |")
