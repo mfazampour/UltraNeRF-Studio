@@ -11,6 +11,7 @@ Outputs:
 - periodic rendered visualizations during training
 """
 
+import inspect
 import os
 import time
 
@@ -26,7 +27,8 @@ from tqdm import trange
 from load_us import load_us_data
 from nerf_utils import create_barf, img2mse, render_us
 
-torch.cuda.set_per_process_memory_fraction(0.95)
+if torch.cuda.is_available():
+    torch.cuda.set_per_process_memory_fraction(0.95)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -290,14 +292,18 @@ def train():
     # Losses
     ssim_weight = args.ssim_lambda
     l2_weight = 1.0 - ssim_weight
-    ssim_loss = SSIMLoss(
-        spatial_dims=2,
-        data_range=1.0,
-        kernel_type="gaussian",
-        win_size=args.ssim_filter_size,
-        k1=0.01,
-        k2=0.1,
-    )
+    ssim_kwargs = {
+        "spatial_dims": 2,
+        "win_size": args.ssim_filter_size,
+        "k1": 0.01,
+        "k2": 0.1,
+    }
+    ssim_signature = inspect.signature(SSIMLoss)
+    if "data_range" in ssim_signature.parameters:
+        ssim_kwargs["data_range"] = 1.0
+    if "kernel_type" in ssim_signature.parameters:
+        ssim_kwargs["kernel_type"] = "gaussian"
+    ssim_loss = SSIMLoss(**ssim_kwargs)
 
     start = start + 1
     for i in trange(start, N_iters + 1):
@@ -422,5 +428,6 @@ def train():
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.float32)
-    torch.set_default_device("cuda")
+    if hasattr(torch, "set_default_device") and torch.cuda.is_available():
+        torch.set_default_device("cuda")
     train()

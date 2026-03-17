@@ -80,7 +80,7 @@ class Reconstruction(nn.Module):
             if i in self.skips:
                 h = torch.cat([input, h], -1)
 
-        outputs = F.sigmoid(self.output_linear(h))
+        outputs = torch.sigmoid(self.output_linear(h))
 
         return outputs
 
