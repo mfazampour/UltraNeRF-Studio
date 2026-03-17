@@ -2,7 +2,6 @@ loss = l2
 basedir = logs
 datadir = data/synthetic_testing/l2
 dataset_type = us
-no_batching = True
 output_ch = 5
 
 N_samples = 512
