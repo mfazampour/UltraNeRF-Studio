@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 
+from visualization.render_controller import RenderController, RenderTriggerMode
 from visualization.sweep_volume import (
     FusedSweepVolume,
     compute_sweep_bounds_mm,
@@ -41,6 +42,18 @@ class VisualizationLaunchSession:
 
     viewer: Any
     ui_controller: Any
+    render_controller: RenderController | None
+
+
+@dataclass(frozen=True)
+class NerfLaunchConfig:
+    """Optional runtime configuration for checkpoint-backed NeRF rendering."""
+
+    checkpoint_path: Path
+    config_path: Path
+    trigger_mode: RenderTriggerMode = "manual"
+    render_image_shape: tuple[int, int] | None = None
+    device: str | None = None
 
 
 def load_visualization_dataset(dataset_dir: str | Path) -> tuple[np.ndarray, np.ndarray]:
@@ -96,6 +109,54 @@ def build_or_load_fused_volume(
     return fused, cache, False, images, poses_mm
 
 
+def resolve_render_image_shape(
+    images: np.ndarray,
+    *,
+    render_height: int | None = None,
+    render_width: int | None = None,
+) -> tuple[int, int]:
+    """Resolve the NeRF render image size from overrides or dataset frames."""
+    image_array = np.asarray(images)
+    if image_array.ndim < 3:
+        raise ValueError("images must have shape (N, H, W)")
+    height = int(render_height) if render_height is not None else int(image_array.shape[1])
+    width = int(render_width) if render_width is not None else int(image_array.shape[2])
+    if height <= 0 or width <= 0:
+        raise ValueError("render_height and render_width must be positive")
+    return (height, width)
+
+
+def build_render_controller(
+    state: VisualizationAppState,
+    nerf_config: NerfLaunchConfig,
+    *,
+    nerf_session_factory: Any | None = None,
+) -> RenderController:
+    """Build a checkpoint-backed render controller for the visualization app."""
+    checkpoint_path = Path(nerf_config.checkpoint_path)
+    config_path = Path(nerf_config.config_path)
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config not found: {config_path}")
+
+    if nerf_session_factory is None:
+        from visualization.nerf_session import NerfSession
+
+        nerf_session_factory = NerfSession.from_checkpoint
+
+    image_shape = nerf_config.render_image_shape or resolve_render_image_shape(state.images)
+    nerf_session = nerf_session_factory(
+        config_path=str(config_path),
+        checkpoint_path=str(checkpoint_path),
+        image_shape=image_shape,
+        probe_width_mm=state.probe_geometry.width_mm,
+        probe_depth_mm=state.probe_geometry.depth_mm,
+        device=nerf_config.device,
+    )
+    return RenderController(nerf_session=nerf_session, trigger_mode=nerf_config.trigger_mode)
+
+
 def prepare_visualization_app(
     *,
     dataset_dir: str | Path,
@@ -134,9 +195,13 @@ def launch_visualization_app(
     *,
     initial_pose_index: int = 0,
     render_controller: Any | None = None,
+    nerf_config: NerfLaunchConfig | None = None,
 ) -> VisualizationLaunchSession:
     """Launch the napari viewer and attach scene overlays."""
     from visualization.napari_ui import VisualizationUIController
+
+    if render_controller is None and nerf_config is not None:
+        render_controller = build_render_controller(state, nerf_config)
 
     viewer = launch_basic_volume_viewer(
         state.fused_volume,
@@ -146,4 +211,8 @@ def launch_visualization_app(
     ui_controller = VisualizationUIController(viewer, state, render_controller=render_controller)
     safe_index = min(max(int(initial_pose_index), 0), state.poses_mm.shape[0] - 1)
     ui_controller.initialize(state.poses_mm[safe_index])
-    return VisualizationLaunchSession(viewer=viewer, ui_controller=ui_controller)
+    return VisualizationLaunchSession(
+        viewer=viewer,
+        ui_controller=ui_controller,
+        render_controller=render_controller,
+    )
