@@ -65,6 +65,7 @@ def test_run_visualize_multi_sweeps_no_gui_prints_summary(tmp_path: Path) -> Non
     assert summary["active_sweep_id"] == "sweep_a"
     assert summary["nerf_enabled"] is False
     assert summary["fusion_device"] == "auto"
+    assert summary["fusion_reduction"] == "max"
     assert "alignment_warning_count" in summary
 
 
@@ -106,3 +107,4 @@ def test_run_visualize_multi_sweeps_no_gui_reports_nerf_config(tmp_path: Path) -
     assert summary["config_path"] == str(config_path.resolve())
     assert summary["render_image_shape"] == [8, 9]
     assert summary["fusion_device"] == "auto"
+    assert summary["fusion_reduction"] == "max"

@@ -15,7 +15,7 @@ from visualization.multi_sweep_loader import load_multi_sweep_scene_from_manifes
 from visualization.multi_sweep_ui import MultiSweepSceneController
 from visualization.multi_sweep_volume import MultiSweepFusionResult
 from visualization.render_controller import RenderController
-from visualization.sweep_volume import FusionDevice
+from visualization.sweep_volume import FusionDevice, FusionReductionMode
 
 
 @dataclass
@@ -30,6 +30,7 @@ class MultiSweepVisualizationAppState:
     preset_name: str
     cache_root: Path | None = None
     fusion_device: FusionDevice = "auto"
+    reduction_mode: FusionReductionMode = "max"
 
     @property
     def probe_geometry(self):
@@ -221,6 +222,7 @@ def prepare_multi_sweep_visualization_app(
     preset_name: str = "soft_tissue",
     cache_root: str | Path | None = None,
     fusion_device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "max",
 ) -> MultiSweepVisualizationAppState:
     """Load and validate a multi-sweep scene for visualization."""
     manifest = Path(manifest_path)
@@ -230,6 +232,7 @@ def prepare_multi_sweep_visualization_app(
         spacing_mm=spacing_mm,
         pixel_stride=pixel_stride,
         fusion_device=fusion_device,
+        reduction_mode=reduction_mode,
     )
     fusion_result = scene_controller.build_fusion_result()
     alignment_validation = validate_multi_sweep_alignment(scene)
@@ -242,6 +245,7 @@ def prepare_multi_sweep_visualization_app(
         preset_name=preset_name,
         cache_root=Path(cache_root) if cache_root is not None else None,
         fusion_device=fusion_device,
+        reduction_mode=reduction_mode,
     )
 
 

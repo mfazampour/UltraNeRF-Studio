@@ -11,6 +11,7 @@ import numpy as np
 from visualization.render_controller import RenderController, RenderTriggerMode
 from visualization.sweep_volume import (
     FusionDevice,
+    FusionReductionMode,
     FusedSweepVolume,
     compute_sweep_bounds_mm,
     fuse_sweeps_to_volume,
@@ -36,6 +37,7 @@ class VisualizationAppState:
     probe_geometry: ProbeGeometry
     preset_name: str
     fusion_device: FusionDevice
+    reduction_mode: FusionReductionMode
 
 
 @dataclass
@@ -75,6 +77,7 @@ def build_or_load_fused_volume(
     pixel_stride: tuple[int, int],
     cache_path: str | Path | None = None,
     fusion_device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "max",
 ) -> tuple[FusedSweepVolume, Path | None, bool, np.ndarray, np.ndarray]:
     """Load a cached volume when possible, otherwise build and optionally cache it."""
     images, poses_mm = load_visualization_dataset(dataset_dir)
@@ -83,7 +86,8 @@ def build_or_load_fused_volume(
     fusion_params = {
         "pixel_stride": list(pixel_stride),
         "spacing_mm": list(spacing_mm),
-        "mode": "nearest",
+        "sampling_mode": "nearest",
+        "reduction_mode": str(reduction_mode),
     }
     metadata = {
         "dataset_id": str(dataset_path.resolve()),
@@ -111,6 +115,7 @@ def build_or_load_fused_volume(
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
         device=fusion_device,
+        reduction_mode=reduction_mode,
     )
     if cache is not None:
         cache.parent.mkdir(parents=True, exist_ok=True)
@@ -180,6 +185,7 @@ def prepare_visualization_app(
     cache_path: str | Path | None = None,
     preset_name: str = "soft_tissue",
     fusion_device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "max",
 ) -> VisualizationAppState:
     """Prepare the fused volume and trajectory for the visualization app."""
     probe_geometry = ProbeGeometry(width_mm=float(probe_width_mm), depth_mm=float(probe_depth_mm))
@@ -190,6 +196,7 @@ def prepare_visualization_app(
         pixel_stride=pixel_stride,
         cache_path=cache_path,
         fusion_device=fusion_device,
+        reduction_mode=reduction_mode,
     )
     trajectory = build_trajectory_overlay(poses_mm)
     return VisualizationAppState(
@@ -203,6 +210,7 @@ def prepare_visualization_app(
         probe_geometry=probe_geometry,
         preset_name=preset_name,
         fusion_device=fusion_device,
+        reduction_mode=reduction_mode,
     )
 
 

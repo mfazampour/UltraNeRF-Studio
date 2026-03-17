@@ -52,6 +52,7 @@ def test_prepare_multi_sweep_visualization_app_returns_scene_and_alignment(tmp_p
     assert state.fusion_result.aggregate_volume.scalar_volume.ndim == 3
     assert len(state.alignment_validation.per_sweep) == 2
     assert state.fusion_device == "auto"
+    assert state.reduction_mode == "max"
 
 
 def test_resolve_multi_sweep_render_image_shape_uses_active_sweep() -> None:

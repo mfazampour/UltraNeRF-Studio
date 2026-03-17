@@ -74,6 +74,7 @@ def test_prepare_visualization_app_returns_volume_and_trajectory(tmp_path):
     assert state.trajectory.centers_mm.shape[0] == poses.shape[0]
     assert state.preset_name == "soft_tissue"
     assert state.fusion_device == "auto"
+    assert state.reduction_mode == "max"
 
 
 def test_resolve_render_image_shape_uses_dataset_shape_and_overrides():

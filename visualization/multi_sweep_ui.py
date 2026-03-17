@@ -7,7 +7,7 @@ from typing import Any
 
 from visualization.multi_sweep import MultiSweepScene
 from visualization.multi_sweep_volume import MultiSweepFusionResult, SweepVolumeOverlay, build_sweep_overlay, fuse_multi_sweep_scene
-from visualization.sweep_volume import FusionDevice
+from visualization.sweep_volume import FusionDevice, FusionReductionMode
 
 
 @dataclass(frozen=True)
@@ -30,11 +30,13 @@ class MultiSweepSceneController:
         spacing_mm: tuple[float, float, float] = (1.0, 1.0, 1.0),
         pixel_stride: tuple[int, int] = (2, 2),
         fusion_device: FusionDevice = "auto",
+        reduction_mode: FusionReductionMode = "max",
     ) -> None:
         self.scene = scene
         self.spacing_mm = tuple(float(v) for v in spacing_mm)
         self.pixel_stride = tuple(int(v) for v in pixel_stride)
         self.fusion_device = str(fusion_device)
+        self.reduction_mode = str(reduction_mode)
         self._aggregate_fusion_cache: MultiSweepFusionResult | None = None
         self._per_sweep_volume_cache: dict[str, SweepVolumeOverlay] = {}
         self._trajectory_overlay_cache: dict[str, SweepVolumeOverlay] = {}
@@ -115,6 +117,7 @@ class MultiSweepSceneController:
                 pixel_stride=self.pixel_stride,
                 enabled_sweep_ids=tuple(sweep.sweep_id for sweep in self.scene.sweeps),
                 fusion_device=self.fusion_device,
+                reduction_mode=self.reduction_mode,
                 include_per_sweep_volumes=False,
             )
         return self._aggregate_fusion_cache
@@ -129,6 +132,7 @@ class MultiSweepSceneController:
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
             fusion_device=self.fusion_device,
+            reduction_mode=self.reduction_mode,
             include_volume=False,
         )
         self._trajectory_overlay_cache[sweep_id] = overlay
@@ -144,6 +148,7 @@ class MultiSweepSceneController:
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
             fusion_device=self.fusion_device,
+            reduction_mode=self.reduction_mode,
             include_volume=True,
         )
         self._per_sweep_volume_cache[sweep_id] = overlay

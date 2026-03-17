@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import warnings
 from typing import Iterable, Tuple
 
 import numpy as np
@@ -18,6 +19,7 @@ from visualization.transforms import (
 
 
 FusionDevice = str
+FusionReductionMode = str
 
 
 @dataclass(frozen=True)
@@ -103,17 +105,23 @@ def resolve_fusion_device(device: FusionDevice = "auto") -> str:
 
 def _finalize_fused_volume(
     *,
-    sum_volume: np.ndarray,
+    accum_volume: np.ndarray,
     weight_volume: np.ndarray,
     volume_geometry: VolumeGeometry,
     volume_shape: Tuple[int, int, int],
+    reduction_mode: FusionReductionMode,
 ) -> FusedSweepVolume:
-    scalar_volume = np.divide(
-        sum_volume,
-        np.maximum(weight_volume, 1.0),
-        out=np.zeros_like(sum_volume),
-        where=weight_volume > 0,
-    )
+    if reduction_mode == "mean":
+        scalar_volume = np.divide(
+            accum_volume,
+            np.maximum(weight_volume, 1.0),
+            out=np.zeros_like(accum_volume),
+            where=weight_volume > 0,
+        )
+    elif reduction_mode == "max":
+        scalar_volume = np.where(weight_volume > 0, accum_volume, 0.0).astype(np.float32)
+    else:
+        raise ValueError("reduction_mode must be one of: mean, max")
 
     bounds_min = volume_geometry.origin_mm.astype(np.float32)
     bounds_max = (
@@ -137,12 +145,18 @@ def _fuse_sweeps_to_volume_numpy(
     volume_geometry: VolumeGeometry,
     volume_shape: Tuple[int, int, int],
     pixel_stride: Tuple[int, int],
+    reduction_mode: FusionReductionMode,
 ) -> FusedSweepVolume:
     """Fuse sweeps using the original NumPy implementation."""
     imgs = np.asarray(images, dtype=np.float32)
     poses = np.asarray(poses_probe_to_world, dtype=np.float32)
 
-    sum_volume = np.zeros(volume_shape, dtype=np.float32)
+    if reduction_mode == "mean":
+        accum_volume = np.zeros(volume_shape, dtype=np.float32)
+    elif reduction_mode == "max":
+        accum_volume = np.full(volume_shape, -np.inf, dtype=np.float32)
+    else:
+        raise ValueError("reduction_mode must be one of: mean, max")
     weight_volume = np.zeros(volume_shape, dtype=np.float32)
 
     image_shape = (int(imgs.shape[1]), int(imgs.shape[2]))
@@ -172,15 +186,28 @@ def _fuse_sweeps_to_volume_numpy(
         valid_indices = voxel_indices[valid_mask]
         valid_values = flat_values[valid_mask]
 
-        for idx, value in zip(valid_indices, valid_values):
-            sum_volume[idx[0], idx[1], idx[2]] += float(value)
-            weight_volume[idx[0], idx[1], idx[2]] += 1.0
+        if reduction_mode == "mean":
+            for idx, value in zip(valid_indices, valid_values):
+                accum_volume[idx[0], idx[1], idx[2]] += float(value)
+                weight_volume[idx[0], idx[1], idx[2]] += 1.0
+        else:
+            np.maximum.at(
+                accum_volume,
+                (valid_indices[:, 0], valid_indices[:, 1], valid_indices[:, 2]),
+                valid_values,
+            )
+            np.add.at(
+                weight_volume,
+                (valid_indices[:, 0], valid_indices[:, 1], valid_indices[:, 2]),
+                1.0,
+            )
 
     return _finalize_fused_volume(
-        sum_volume=sum_volume,
+        accum_volume=accum_volume,
         weight_volume=weight_volume,
         volume_geometry=volume_geometry,
         volume_shape=volume_shape,
+        reduction_mode=reduction_mode,
     )
 
 
@@ -192,6 +219,7 @@ def _fuse_sweeps_to_volume_torch(
     volume_shape: Tuple[int, int, int],
     pixel_stride: Tuple[int, int],
     device: str,
+    reduction_mode: FusionReductionMode,
 ) -> FusedSweepVolume:
     """Fuse sweeps using torch scatter-add on CPU or CUDA."""
     import torch
@@ -213,7 +241,12 @@ def _fuse_sweeps_to_volume_torch(
 
     x_dim, y_dim, z_dim = (int(v) for v in volume_shape)
     flat_size = x_dim * y_dim * z_dim
-    sum_volume_flat = torch.zeros(flat_size, dtype=torch.float32, device=torch_device)
+    if reduction_mode == "mean":
+        accum_volume_flat = torch.zeros(flat_size, dtype=torch.float32, device=torch_device)
+    elif reduction_mode == "max":
+        accum_volume_flat = torch.full((flat_size,), float("-inf"), dtype=torch.float32, device=torch_device)
+    else:
+        raise ValueError("reduction_mode must be one of: mean, max")
     weight_volume_flat = torch.zeros(flat_size, dtype=torch.float32, device=torch_device)
 
     for image_np, pose_np in zip(imgs, poses):
@@ -238,16 +271,22 @@ def _fuse_sweeps_to_volume_torch(
         valid_indices = voxel_indices[valid_mask]
         valid_values = flat_values[valid_mask].to(torch.float32)
         linear_indices = valid_indices[:, 0] * (y_dim * z_dim) + valid_indices[:, 1] * z_dim + valid_indices[:, 2]
-        sum_volume_flat.index_add_(0, linear_indices, valid_values)
+        if reduction_mode == "mean":
+            accum_volume_flat.index_add_(0, linear_indices, valid_values)
+        else:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="index_reduce\\(\\) is in beta.*", category=UserWarning)
+                accum_volume_flat.index_reduce_(0, linear_indices, valid_values, reduce="amax", include_self=True)
         weight_volume_flat.index_add_(0, linear_indices, torch.ones_like(valid_values))
 
-    sum_volume = sum_volume_flat.reshape(volume_shape).detach().cpu().numpy().astype(np.float32)
+    accum_volume = accum_volume_flat.reshape(volume_shape).detach().cpu().numpy().astype(np.float32)
     weight_volume = weight_volume_flat.reshape(volume_shape).detach().cpu().numpy().astype(np.float32)
     return _finalize_fused_volume(
-        sum_volume=sum_volume,
+        accum_volume=accum_volume,
         weight_volume=weight_volume,
         volume_geometry=volume_geometry,
         volume_shape=volume_shape,
+        reduction_mode=reduction_mode,
     )
 
 
@@ -259,12 +298,14 @@ def fuse_sweeps_to_volume(
     volume_shape: Tuple[int, int, int],
     pixel_stride: Tuple[int, int] = (1, 1),
     device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "mean",
 ) -> FusedSweepVolume:
     """Fuse tracked 2D sweeps into a dense scalar volume.
 
-    Nearest-neighbor splatting is used in the first implementation. Intensities
-    are accumulated into `weight_volume`, and the returned `scalar_volume` is the
-    normalized mean intensity per voxel.
+    Nearest-neighbor splatting is used in the first implementation. The
+    ``reduction_mode`` controls how multiple contributions to one voxel are
+    combined: ``mean`` averages them, while ``max`` preserves the maximum
+    intensity.
     """
     imgs = np.asarray(images, dtype=np.float32)
     poses = np.asarray(poses_probe_to_world, dtype=np.float32)
@@ -284,6 +325,7 @@ def fuse_sweeps_to_volume(
             volume_geometry=volume_geometry,
             volume_shape=volume_shape,
             pixel_stride=pixel_stride,
+            reduction_mode=reduction_mode,
         )
     return _fuse_sweeps_to_volume_torch(
         images=imgs,
@@ -293,4 +335,5 @@ def fuse_sweeps_to_volume(
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
         device=resolved_device,
+        reduction_mode=reduction_mode,
     )

@@ -108,6 +108,7 @@ def make_app_state():
         probe_geometry=ProbeGeometry(width_mm=20.0, depth_mm=40.0),
         preset_name="soft_tissue",
         fusion_device="cpu",
+        reduction_mode="max",
     )
 
 

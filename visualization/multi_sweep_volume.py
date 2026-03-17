@@ -10,6 +10,7 @@ import numpy as np
 from visualization.multi_sweep import MultiSweepScene, SweepRecord
 from visualization.sweep_volume import (
     FusionDevice,
+    FusionReductionMode,
     FusedSweepVolume,
     compute_sweep_bounds_mm,
     fuse_sweeps_to_volume,
@@ -66,6 +67,7 @@ def build_sweep_overlay(
     pixel_stride: tuple[int, int] = (1, 1),
     axis_stride: int = 10,
     fusion_device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "max",
     include_volume: bool = True,
 ) -> SweepVolumeOverlay:
     """Build one per-sweep fused volume plus trajectory overlay."""
@@ -81,6 +83,7 @@ def build_sweep_overlay(
             volume_shape=volume_shape,
             pixel_stride=pixel_stride,
             device=fusion_device,
+            reduction_mode=reduction_mode,
         )
     trajectory = build_trajectory_overlay(sweep.poses_mm, axis_stride=axis_stride)
     return SweepVolumeOverlay(
@@ -101,6 +104,7 @@ def fuse_multi_sweep_scene(
     enabled_sweep_ids: Iterable[str] | None = None,
     axis_stride: int = 10,
     fusion_device: FusionDevice = "auto",
+    reduction_mode: FusionReductionMode = "max",
     include_per_sweep_volumes: bool = True,
 ) -> MultiSweepFusionResult:
     """Fuse several sweeps into one aggregate volume plus per-sweep overlays."""
@@ -127,6 +131,7 @@ def fuse_multi_sweep_scene(
                 pixel_stride=pixel_stride,
                 axis_stride=axis_stride,
                 fusion_device=fusion_device,
+                reduction_mode=reduction_mode,
                 include_volume=include_per_sweep_volumes,
             )
         )
@@ -141,6 +146,7 @@ def fuse_multi_sweep_scene(
         volume_shape=volume_shape,
         pixel_stride=pixel_stride,
         device=fusion_device,
+        reduction_mode=reduction_mode,
     )
     return MultiSweepFusionResult(
         aggregate_volume=aggregate_volume,

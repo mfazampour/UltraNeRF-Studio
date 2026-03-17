@@ -43,15 +43,18 @@ def test_cache_metadata_matches_detects_dataset_probe_and_params():
         "cache_version": 1,
         "dataset_id": "synthetic-r2",
         "probe_geometry": {"width_mm": 80.0, "depth_mm": 140.0},
-        "fusion_params": {"pixel_stride": [1, 1], "mode": "nearest"},
+        "fusion_params": {"pixel_stride": [1, 1], "sampling_mode": "nearest", "reduction_mode": "max"},
     }
 
     assert cache_metadata_matches(
         metadata,
         dataset_id="synthetic-r2",
         probe_geometry={"width_mm": 80.0, "depth_mm": 140.0},
-        fusion_params={"pixel_stride": [1, 1], "mode": "nearest"},
+        fusion_params={"pixel_stride": [1, 1], "sampling_mode": "nearest", "reduction_mode": "max"},
     )
     assert not cache_metadata_matches(metadata, dataset_id="synthetic-l2")
     assert not cache_metadata_matches(metadata, probe_geometry={"width_mm": 37.0, "depth_mm": 100.0})
-    assert not cache_metadata_matches(metadata, fusion_params={"pixel_stride": [2, 2], "mode": "nearest"})
+    assert not cache_metadata_matches(
+        metadata,
+        fusion_params={"pixel_stride": [2, 2], "sampling_mode": "nearest", "reduction_mode": "max"},
+    )

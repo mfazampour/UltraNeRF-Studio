@@ -60,6 +60,7 @@ def test_run_visualize_sweeps_no_gui_prepares_volume_and_prints_summary(tmp_path
     assert summary["cache_used"] is False
     assert summary["preset"] == "soft_tissue"
     assert summary["fusion_device"] == "auto"
+    assert summary["fusion_reduction"] == "max"
     assert summary["num_frames"] == 2
     assert summary["nerf_enabled"] is False
     assert summary["render_image_shape"] is None
@@ -126,3 +127,4 @@ def test_run_visualize_sweeps_no_gui_reports_nerf_launch_configuration(tmp_path)
     assert summary["min_render_interval_ms"] == 120.0
     assert summary["render_image_shape"] == [6, 7]
     assert summary["fusion_device"] == "auto"
+    assert summary["fusion_reduction"] == "max"
