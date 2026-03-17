@@ -92,6 +92,30 @@ def pose_from_yaw_pitch_roll(
     return pose_from_rotation_and_origin(rotation, origin_mm)
 
 
+def yaw_pitch_roll_from_rotation_matrix(rotation: np.ndarray) -> tuple[float, float, float]:
+    """Extract yaw, pitch, and roll in degrees from a Z-Y-X rotation matrix."""
+    rot = orthonormalize_rotation(rotation)
+    pitch_rad = float(np.arcsin(np.clip(-rot[2, 0], -1.0, 1.0)))
+    cos_pitch = float(np.cos(pitch_rad))
+    if abs(cos_pitch) > 1e-6:
+        yaw_rad = float(np.arctan2(rot[1, 0], rot[0, 0]))
+        roll_rad = float(np.arctan2(rot[2, 1], rot[2, 2]))
+    else:
+        yaw_rad = float(np.arctan2(-rot[0, 1], rot[1, 1]))
+        roll_rad = 0.0
+    return (
+        float(np.rad2deg(yaw_rad)),
+        float(np.rad2deg(pitch_rad)),
+        float(np.rad2deg(roll_rad)),
+    )
+
+
+def pose_to_yaw_pitch_roll(pose_probe_to_world: np.ndarray) -> tuple[float, float, float]:
+    """Extract yaw, pitch, and roll in degrees from a probe pose."""
+    pose = ensure_pose_matrix(pose_probe_to_world)
+    return yaw_pitch_roll_from_rotation_matrix(pose[:3, :3])
+
+
 def update_probe_pose_orientation(
     pose_probe_to_world: np.ndarray,
     *,

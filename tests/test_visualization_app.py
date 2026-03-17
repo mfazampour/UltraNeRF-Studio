@@ -147,12 +147,19 @@ def test_launch_visualization_app_initializes_ui_controller(monkeypatch, tmp_pat
         visible = False
         unit = None
 
+    class FakeWindow:
+        def __init__(self):
+            self.calls = []
+
+        def add_dock_widget(self, widget, area=None, name=None):
+            self.calls.append({"widget": widget, "area": area, "name": name})
+
     class FakeViewer:
         def __init__(self, *args, **kwargs):
             self.layers = {}
             self.axes = FakeAxes()
             self.scale_bar = FakeScaleBar()
-            self.window = type("FakeWindow", (), {"add_dock_widget": lambda self, widget, area=None, name=None: None})()
+            self.window = FakeWindow()
 
         def add_image(self, data, **kwargs):
             layer = FakeLayer(data, **kwargs)
@@ -177,9 +184,19 @@ def test_launch_visualization_app_initializes_ui_controller(monkeypatch, tmp_pat
     class FakeNapari:
         Viewer = FakeViewer
 
+    class FakeProbeControls:
+        def __init__(self, ui_controller, num_frames):
+            self.ui_controller = ui_controller
+            self.num_frames = num_frames
+            self.widget = object()
+
+        def set_pose_values(self, **kwargs):
+            self.values = kwargs
+
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
+    monkeypatch.setattr("visualization.probe_controls.create_probe_controls", lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames))
 
     session = launch_visualization_app(state)
 
@@ -188,6 +205,8 @@ def test_launch_visualization_app_initializes_ui_controller(monkeypatch, tmp_pat
     assert "probe_origin" in session.viewer.layers
     assert session.ui_controller.state.comparison_payload["matched_index"] == 0
     assert session.render_controller is None
+    assert session.ui_controller.probe_controls is not None
+    assert session.viewer.window.calls[0]["name"] == "Probe Controls"
 
 
 def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(monkeypatch, tmp_path):
@@ -218,12 +237,19 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
         visible = False
         unit = None
 
+    class FakeWindow:
+        def __init__(self):
+            self.calls = []
+
+        def add_dock_widget(self, widget, area=None, name=None):
+            self.calls.append({"widget": widget, "area": area, "name": name})
+
     class FakeViewer:
         def __init__(self, *args, **kwargs):
             self.layers = {}
             self.axes = FakeAxes()
             self.scale_bar = FakeScaleBar()
-            self.window = type("FakeWindow", (), {"add_dock_widget": lambda self, widget, area=None, name=None: None})()
+            self.window = FakeWindow()
 
         def add_image(self, data, **kwargs):
             layer = FakeLayer(data, **kwargs)
@@ -266,6 +292,15 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
         def set_image(self, image):
             self.image = image
 
+    class FakeProbeControls:
+        def __init__(self, ui_controller, num_frames):
+            self.ui_controller = ui_controller
+            self.num_frames = num_frames
+            self.widget = object()
+
+        def set_pose_values(self, **kwargs):
+            self.values = kwargs
+
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
@@ -277,6 +312,7 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
         ),
     )
     monkeypatch.setattr("visualization.render_panel.create_render_panel", lambda ui_controller: FakeRenderPanel(ui_controller))
+    monkeypatch.setattr("visualization.probe_controls.create_probe_controls", lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames))
 
     session = launch_visualization_app(
         state,
@@ -292,3 +328,4 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
     assert session.render_controller is not None
     assert session.render_controller.trigger_mode == "manual"
     assert session.ui_controller.render_panel is not None
+    assert session.ui_controller.probe_controls is not None

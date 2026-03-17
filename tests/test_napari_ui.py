@@ -60,6 +60,14 @@ class FakeRenderPanel:
         self.image = np.asarray(image)
 
 
+class FakeProbeControls:
+    def __init__(self):
+        self.values = None
+
+    def set_pose_values(self, **kwargs):
+        self.values = dict(kwargs)
+
+
 def make_app_state():
     images = np.arange(3 * 4 * 5, dtype=np.float32).reshape(3, 4, 5)
     poses = np.stack([np.eye(4, dtype=np.float32) for _ in range(3)], axis=0)
@@ -150,3 +158,26 @@ def test_render_panel_receives_status_and_image_updates():
     assert render_panel.status == "Rendered"
     assert render_panel.metadata == "Image shape: (4, 5)"
     assert render_panel.image.shape == (4, 5)
+
+
+def test_probe_controls_receive_pose_updates_and_can_snap_to_recorded_pose():
+    state = make_app_state()
+    viewer = FakeViewer()
+    controller = VisualizationUIController(viewer, state)
+    probe_controls = FakeProbeControls()
+    controller.attach_probe_controls(probe_controls)
+    controller.initialize()
+
+    assert np.allclose(probe_controls.values["origin_mm"], [0.0, 0.0, 0.0])
+    assert probe_controls.values["recorded_index"] == 0
+
+    controller.set_probe_pose_from_components(
+        origin_mm=np.array([10.0, 0.0, 0.0], dtype=np.float32),
+        yaw_deg=0.0,
+        pitch_deg=0.0,
+        roll_deg=0.0,
+    )
+    assert np.allclose(controller.state.probe_pose_mm[:3, 3], [10.0, 0.0, 0.0])
+
+    controller.snap_probe_to_nearest_recorded_pose()
+    assert np.allclose(controller.state.probe_pose_mm[:3, 3], [10.0, 0.0, 0.0])

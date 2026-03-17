@@ -13,10 +13,11 @@ import numpy as np
 
 from visualization.app import VisualizationAppState
 from visualization.comparison import build_comparison_payload
+from visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
 from visualization.probe_representation import ProbeRepresentation, build_probe_representation
 from visualization.render_controller import RenderController
 from visualization.render_panel import extract_render_image, format_render_metadata
-from visualization.trajectory import TrajectoryOverlay
+from visualization.trajectory import TrajectoryOverlay, nearest_trajectory_index
 from visualization.transforms import ensure_pose_matrix
 
 
@@ -82,11 +83,17 @@ class VisualizationUIController:
         self.state: SceneState | None = None
         self._layers: dict[str, Any] = {}
         self.render_panel: Any | None = None
+        self.probe_controls: Any | None = None
 
     def attach_render_panel(self, render_panel: Any) -> None:
         """Attach an optional render panel to receive render-status updates."""
         self.render_panel = render_panel
         self._refresh_render_panel()
+
+    def attach_probe_controls(self, probe_controls: Any) -> None:
+        """Attach an optional probe-controls panel to receive pose updates."""
+        self.probe_controls = probe_controls
+        self._refresh_probe_controls()
 
     def initialize(self, probe_pose_mm: np.ndarray | None = None) -> SceneState:
         """Add trajectory and probe overlays to the viewer."""
@@ -119,6 +126,7 @@ class VisualizationUIController:
             rendered_output=rendered_output,
         )
         self._refresh_render_panel()
+        self._refresh_probe_controls()
         return self.state
 
     def set_probe_pose(self, probe_pose_mm: np.ndarray) -> SceneState:
@@ -145,11 +153,37 @@ class VisualizationUIController:
             rendered_output=rendered_output,
         )
         self._refresh_render_panel()
+        self._refresh_probe_controls()
         return self.state
 
     def set_probe_to_recorded_pose(self, index: int) -> SceneState:
         """Move the virtual probe to one of the recorded sweep poses."""
         return self.set_probe_pose(self.app_state.poses_mm[index])
+
+    def set_probe_pose_from_components(
+        self,
+        *,
+        origin_mm: np.ndarray,
+        yaw_deg: float,
+        pitch_deg: float,
+        roll_deg: float,
+    ) -> SceneState:
+        """Set the probe pose from translation and yaw/pitch/roll controls."""
+        pose = pose_from_yaw_pitch_roll(
+            np.asarray(origin_mm, dtype=np.float32),
+            yaw_deg=float(yaw_deg),
+            pitch_deg=float(pitch_deg),
+            roll_deg=float(roll_deg),
+        )
+        return self.set_probe_pose(pose)
+
+    def snap_probe_to_nearest_recorded_pose(self) -> SceneState:
+        """Snap the probe to the nearest recorded trajectory center."""
+        if self.state is None:
+            raise RuntimeError("VisualizationUIController must be initialized before use")
+        current_origin = self.state.probe_pose_mm[:3, 3]
+        nearest_index = nearest_trajectory_index(current_origin, self.app_state.trajectory.centers_mm)
+        return self.set_probe_to_recorded_pose(nearest_index)
 
     def render_now(self) -> dict[str, Any]:
         """Render the current probe pose and refresh comparison state."""
@@ -277,3 +311,17 @@ class VisualizationUIController:
         self.render_panel.set_status("Rendered")
         self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
         self.render_panel.set_image(extract_render_image(self.state.rendered_output))
+
+    def _refresh_probe_controls(self) -> None:
+        if self.probe_controls is None or self.state is None:
+            return
+        origin = self.state.probe_pose_mm[:3, 3]
+        yaw_deg, pitch_deg, roll_deg = pose_to_yaw_pitch_roll(self.state.probe_pose_mm)
+        recorded_index = int(self.state.comparison_payload["matched_index"])
+        self.probe_controls.set_pose_values(
+            origin_mm=origin,
+            yaw_deg=yaw_deg,
+            pitch_deg=pitch_deg,
+            roll_deg=roll_deg,
+            recorded_index=recorded_index,
+        )

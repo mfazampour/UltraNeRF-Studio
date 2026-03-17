@@ -215,6 +215,12 @@ def launch_visualization_app(
         render_panel = create_render_panel(ui_controller)
         viewer.window.add_dock_widget(render_panel.widget, area="right", name="NeRF Render")
         ui_controller.attach_render_panel(render_panel)
+    if hasattr(viewer, "window"):
+        from visualization.probe_controls import create_probe_controls
+
+        probe_controls = create_probe_controls(ui_controller, num_frames=state.poses_mm.shape[0])
+        viewer.window.add_dock_widget(probe_controls.widget, area="left", name="Probe Controls")
+        ui_controller.attach_probe_controls(probe_controls)
     safe_index = min(max(int(initial_pose_index), 0), state.poses_mm.shape[0] - 1)
     ui_controller.initialize(state.poses_mm[safe_index])
     return VisualizationLaunchSession(
