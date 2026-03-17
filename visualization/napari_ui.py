@@ -15,6 +15,7 @@ from visualization.app import VisualizationAppState
 from visualization.comparison import build_comparison_payload
 from visualization.probe_representation import ProbeRepresentation, build_probe_representation
 from visualization.render_controller import RenderController
+from visualization.render_panel import extract_render_image, format_render_metadata
 from visualization.trajectory import TrajectoryOverlay
 from visualization.transforms import ensure_pose_matrix
 
@@ -80,6 +81,12 @@ class VisualizationUIController:
         self.render_controller = render_controller
         self.state: SceneState | None = None
         self._layers: dict[str, Any] = {}
+        self.render_panel: Any | None = None
+
+    def attach_render_panel(self, render_panel: Any) -> None:
+        """Attach an optional render panel to receive render-status updates."""
+        self.render_panel = render_panel
+        self._refresh_render_panel()
 
     def initialize(self, probe_pose_mm: np.ndarray | None = None) -> SceneState:
         """Add trajectory and probe overlays to the viewer."""
@@ -111,6 +118,7 @@ class VisualizationUIController:
             comparison_payload=comparison_payload,
             rendered_output=rendered_output,
         )
+        self._refresh_render_panel()
         return self.state
 
     def set_probe_pose(self, probe_pose_mm: np.ndarray) -> SceneState:
@@ -136,6 +144,7 @@ class VisualizationUIController:
             comparison_payload=comparison_payload,
             rendered_output=rendered_output,
         )
+        self._refresh_render_panel()
         return self.state
 
     def set_probe_to_recorded_pose(self, index: int) -> SceneState:
@@ -156,6 +165,7 @@ class VisualizationUIController:
             recorded_images=self.app_state.images,
             recorded_poses_mm=self.app_state.poses_mm,
         )
+        self._refresh_render_panel()
         return output
 
     def _add_trajectory_layers(self) -> None:
@@ -252,3 +262,18 @@ class VisualizationUIController:
                 self._layers[layer_name] = add_method(data, **kwargs)
             else:
                 layer.data = data
+
+    def _refresh_render_panel(self) -> None:
+        if self.render_panel is None:
+            return
+        if self.render_controller is None:
+            self.render_panel.set_status("Sweep-only mode")
+            self.render_panel.set_metadata("No checkpoint configured")
+            return
+        if self.state is None or self.state.rendered_output is None:
+            self.render_panel.set_status("Ready")
+            self.render_panel.set_metadata("No render available")
+            return
+        self.render_panel.set_status("Rendered")
+        self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
+        self.render_panel.set_image(extract_render_image(self.state.rendered_output))

@@ -209,6 +209,12 @@ def launch_visualization_app(
         preset_name=state.preset_name,
     )
     ui_controller = VisualizationUIController(viewer, state, render_controller=render_controller)
+    if render_controller is not None and hasattr(viewer, "window"):
+        from visualization.render_panel import create_render_panel
+
+        render_panel = create_render_panel(ui_controller)
+        viewer.window.add_dock_widget(render_panel.widget, area="right", name="NeRF Render")
+        ui_controller.attach_render_panel(render_panel)
     safe_index = min(max(int(initial_pose_index), 0), state.poses_mm.shape[0] - 1)
     ui_controller.initialize(state.poses_mm[safe_index])
     return VisualizationLaunchSession(

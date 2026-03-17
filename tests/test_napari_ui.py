@@ -44,6 +44,22 @@ class FakeNerfSession:
         return {"intensity_map": np.full((4, 5), float(len(self.calls)), dtype=np.float32)}
 
 
+class FakeRenderPanel:
+    def __init__(self):
+        self.status = None
+        self.metadata = None
+        self.image = None
+
+    def set_status(self, text):
+        self.status = text
+
+    def set_metadata(self, text):
+        self.metadata = text
+
+    def set_image(self, image):
+        self.image = np.asarray(image)
+
+
 def make_app_state():
     images = np.arange(3 * 4 * 5, dtype=np.float32).reshape(3, 4, 5)
     poses = np.stack([np.eye(4, dtype=np.float32) for _ in range(3)], axis=0)
@@ -114,3 +130,23 @@ def test_render_now_uses_render_controller_and_updates_scene_state():
     assert output["intensity_map"].shape == (4, 5)
     assert len(nerf_session.calls) == 1
     assert np.allclose(controller.state.rendered_output["intensity_map"], output["intensity_map"])
+
+
+def test_render_panel_receives_status_and_image_updates():
+    state = make_app_state()
+    viewer = FakeViewer()
+    nerf_session = FakeNerfSession()
+    render_controller = RenderController(nerf_session=nerf_session, trigger_mode="manual")
+    controller = VisualizationUIController(viewer, state, render_controller=render_controller)
+    render_panel = FakeRenderPanel()
+    controller.attach_render_panel(render_panel)
+    controller.initialize()
+
+    assert render_panel.status == "Ready"
+    assert render_panel.metadata == "No render available"
+
+    controller.render_now()
+
+    assert render_panel.status == "Rendered"
+    assert render_panel.metadata == "Image shape: (4, 5)"
+    assert render_panel.image.shape == (4, 5)

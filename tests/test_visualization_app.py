@@ -152,6 +152,7 @@ def test_launch_visualization_app_initializes_ui_controller(monkeypatch, tmp_pat
             self.layers = {}
             self.axes = FakeAxes()
             self.scale_bar = FakeScaleBar()
+            self.window = type("FakeWindow", (), {"add_dock_widget": lambda self, widget, area=None, name=None: None})()
 
         def add_image(self, data, **kwargs):
             layer = FakeLayer(data, **kwargs)
@@ -222,6 +223,7 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
             self.layers = {}
             self.axes = FakeAxes()
             self.scale_bar = FakeScaleBar()
+            self.window = type("FakeWindow", (), {"add_dock_widget": lambda self, widget, area=None, name=None: None})()
 
         def add_image(self, data, **kwargs):
             layer = FakeLayer(data, **kwargs)
@@ -250,6 +252,20 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
         def render_pose(self, pose_probe_to_world_mm, **kwargs):
             return {"intensity_map": np.zeros((4, 5), dtype=np.float32)}
 
+    class FakeRenderPanel:
+        def __init__(self, ui_controller):
+            self.ui_controller = ui_controller
+            self.widget = object()
+
+        def set_status(self, text):
+            self.status = text
+
+        def set_metadata(self, text):
+            self.metadata = text
+
+        def set_image(self, image):
+            self.image = image
+
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
@@ -260,6 +276,7 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
             trigger_mode=nerf_config.trigger_mode,
         ),
     )
+    monkeypatch.setattr("visualization.render_panel.create_render_panel", lambda ui_controller: FakeRenderPanel(ui_controller))
 
     session = launch_visualization_app(
         state,
@@ -274,3 +291,4 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
 
     assert session.render_controller is not None
     assert session.render_controller.trigger_mode == "manual"
+    assert session.ui_controller.render_panel is not None
