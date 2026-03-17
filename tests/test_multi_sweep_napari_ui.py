@@ -2,7 +2,7 @@ import numpy as np
 
 from visualization.multi_sweep import MultiSweepScene, SweepRecord
 from visualization.multi_sweep_app import MultiSweepVisualizationAppState
-from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController
+from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController, _color_to_hex
 from visualization.multi_sweep_ui import MultiSweepSceneController
 from visualization.multi_sweep_volume import fuse_multi_sweep_scene
 from visualization.render_controller import RenderController
@@ -103,6 +103,10 @@ def make_state():
         preset_name="soft_tissue",
         fusion_device="cpu",
     )
+
+
+def test_color_to_hex_converts_normalized_rgb_tuple() -> None:
+    assert _color_to_hex((1.0, 0.5, 0.0), default="#000000") == "#ff8000"
 
 
 def test_initialize_adds_multi_sweep_layers_and_probe() -> None:

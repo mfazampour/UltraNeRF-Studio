@@ -19,6 +19,17 @@ from visualization.transforms import ensure_pose_matrix
 from visualization.volume_viewer import build_volume_layer_config_from_preset
 
 
+def _color_to_hex(color: tuple[float, float, float] | None, *, default: str) -> str:
+    """Convert a normalized RGB tuple into a napari-safe hex color string."""
+    if color is None:
+        return default
+    rgb = np.clip(np.asarray(color, dtype=np.float32), 0.0, 1.0)
+    if rgb.shape != (3,):
+        return default
+    r, g, b = np.rint(rgb * 255.0).astype(np.uint8).tolist()
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def _polyline_shape(points_mm: np.ndarray) -> list[np.ndarray]:
     return [np.asarray(points_mm, dtype=np.float32)]
 
@@ -255,7 +266,7 @@ class MultiSweepVisualizationUIController:
 
         visible_ids = set(fusion_result.enabled_sweep_ids)
         for overlay in fusion_result.sweep_overlays:
-            color = overlay.color_rgb or (0.8, 0.8, 0.2)
+            color = _color_to_hex(overlay.color_rgb, default="#cccc33")
             volume_name = f"sweep_volume__{overlay.sweep_id}"
             volume_config = build_volume_layer_config_from_preset(
                 overlay.fused_volume,
