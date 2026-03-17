@@ -15,6 +15,7 @@ class ProbeControlsDockWidget:
             QHBoxLayout,
             QLabel,
             QPushButton,
+            QScrollArea,
             QSpinBox,
             QVBoxLayout,
             QWidget,
@@ -22,9 +23,19 @@ class ProbeControlsDockWidget:
 
         self.ui_controller = ui_controller
         self._updating_fields = False
-        self.widget = QWidget()
+        outer_widget = QWidget()
+        outer_layout = QVBoxLayout(outer_widget)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        outer_layout.addWidget(scroll_area)
+        self.widget = outer_widget
 
-        layout = QVBoxLayout(self.widget)
+        content_widget = QWidget()
+        content_widget.setMinimumWidth(260)
+        scroll_area.setWidget(content_widget)
+
+        layout = QVBoxLayout(content_widget)
         layout.addWidget(QLabel("Probe Controls"))
 
         form_layout = QFormLayout()

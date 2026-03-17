@@ -137,6 +137,21 @@ def test_handle_multi_sweep_state_change_updates_visibility() -> None:
     assert viewer.layers["sweep_volume__a"].visible is True
 
 
+def test_aggregate_mode_shows_only_active_sweep_trajectories() -> None:
+    state = make_state()
+    viewer = FakeViewer()
+    controller = MultiSweepVisualizationUIController(viewer, state)
+    controller.initialize()
+
+    assert viewer.layers["trajectory_path__a"].visible is True
+    assert viewer.layers["trajectory_path__b"].visible is False
+
+    controller.set_active_sweep("b")
+
+    assert viewer.layers["trajectory_path__a"].visible is False
+    assert viewer.layers["trajectory_path__b"].visible is True
+
+
 def test_probe_controls_and_comparison_panel_refresh_with_active_sweep() -> None:
     state = make_state()
     viewer = FakeViewer()

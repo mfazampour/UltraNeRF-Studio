@@ -86,7 +86,9 @@ class MultiSweepSceneController:
 
     def build_fusion_result(self) -> MultiSweepFusionResult:
         include_per_sweep_volumes = not self.state.show_aggregate_volume
-        cache_key = (self.state.enabled_sweep_ids, include_per_sweep_volumes)
+        aggregate_sweep_ids = tuple(sweep.sweep_id for sweep in self.scene.sweeps)
+        selected_ids = aggregate_sweep_ids if self.state.show_aggregate_volume else self.state.enabled_sweep_ids
+        cache_key = (selected_ids, include_per_sweep_volumes)
         cached = self._fusion_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -94,7 +96,7 @@ class MultiSweepSceneController:
             self.scene,
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
-            enabled_sweep_ids=self.state.enabled_sweep_ids,
+            enabled_sweep_ids=selected_ids,
             fusion_device=self.fusion_device,
             include_per_sweep_volumes=include_per_sweep_volumes,
         )
@@ -113,6 +115,7 @@ class MultiSweepControlsDockWidget:
             QLabel,
             QListWidget,
             QListWidgetItem,
+            QScrollArea,
             QVBoxLayout,
             QWidget,
         )
@@ -120,9 +123,21 @@ class MultiSweepControlsDockWidget:
         self.controller = controller
         self.on_state_changed = on_state_changed
         self._updating = False
-        self.widget = QWidget()
-        layout = QVBoxLayout(self.widget)
+        outer_widget = QWidget()
+        outer_layout = QVBoxLayout(outer_widget)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        outer_layout.addWidget(scroll_area)
+
+        self.widget = outer_widget
+        content_widget = QWidget()
+        content_widget.setMinimumWidth(280)
+        scroll_area.setWidget(content_widget)
+        layout = QVBoxLayout(content_widget)
         layout.addWidget(QLabel("Multi-Sweep Controls"))
+        layout.addWidget(QLabel("Enabled sweeps affect per-sweep mode and comparison."))
 
         form_layout = QFormLayout()
         layout.addLayout(form_layout)
@@ -144,6 +159,7 @@ class MultiSweepControlsDockWidget:
         layout.addWidget(self.aggregate_checkbox)
 
         self.enabled_sweeps_list = QListWidget()
+        self.enabled_sweeps_list.setMinimumHeight(180)
         for sweep in controller.scene.sweeps:
             item = QListWidgetItem(sweep.display_name or sweep.sweep_id)
             item.setData(1, sweep.sweep_id)

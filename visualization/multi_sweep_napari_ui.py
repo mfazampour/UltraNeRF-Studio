@@ -237,6 +237,9 @@ class MultiSweepVisualizationUIController:
     def _refresh_multi_sweep_scene_layers(self) -> None:
         fusion_result = self.app_state.scene_controller.build_fusion_result()
         self.app_state.fusion_result = fusion_result
+        state = self.app_state.scene_controller.state
+        active_id = state.active_sweep_id
+        trajectory_visible_ids = {active_id} if state.show_aggregate_volume else set(fusion_result.enabled_sweep_ids)
         aggregate_config = build_volume_layer_config_from_preset(
             fusion_result.aggregate_volume,
             preset_name=self.app_state.preset_name,
@@ -262,7 +265,9 @@ class MultiSweepVisualizationUIController:
                 aggregate_layer.scale = aggregate_config.scale
             if hasattr(aggregate_layer, "translate"):
                 aggregate_layer.translate = aggregate_config.translate
-        _set_layer_visibility(aggregate_layer, self.app_state.scene_controller.state.show_aggregate_volume)
+        if hasattr(aggregate_layer, "opacity"):
+            aggregate_layer.opacity = min(float(aggregate_config.opacity), 0.16)
+        _set_layer_visibility(aggregate_layer, state.show_aggregate_volume)
 
         visible_ids = set(fusion_result.enabled_sweep_ids)
         for overlay in fusion_result.sweep_overlays:
@@ -283,7 +288,7 @@ class MultiSweepVisualizationUIController:
                         name=volume_config.name,
                         rendering=volume_config.rendering,
                         colormap=volume_config.colormap,
-                        opacity=max(0.15, volume_config.opacity * 0.6),
+                        opacity=max(0.10, min(0.22, volume_config.opacity * 0.45)),
                         blending=volume_config.blending,
                         contrast_limits=volume_config.contrast_limits,
                     )
@@ -294,7 +299,9 @@ class MultiSweepVisualizationUIController:
                         layer.scale = volume_config.scale
                     if hasattr(layer, "translate"):
                         layer.translate = volume_config.translate
-                _set_layer_visibility(layer, not self.app_state.scene_controller.state.show_aggregate_volume)
+                if hasattr(layer, "opacity"):
+                    layer.opacity = max(0.10, min(0.22, volume_config.opacity * 0.45))
+                _set_layer_visibility(layer, not state.show_aggregate_volume)
             else:
                 if layer is not None:
                     _set_layer_visibility(layer, False)
@@ -309,27 +316,31 @@ class MultiSweepVisualizationUIController:
                     shape_type="path",
                     name=path_name,
                     edge_color=color,
-                    edge_width=3 if overlay.sweep_id == self.app_state.scene_controller.state.active_sweep_id else 2,
+                    edge_width=4 if overlay.sweep_id == active_id else 2,
                     face_color="transparent",
                 )
                 path_layer = self._layers[path_name]
             else:
                 path_layer.data = _polyline_shape(overlay.trajectory.polyline_mm)
-            _set_layer_visibility(path_layer, overlay.sweep_id in visible_ids)
+            if hasattr(path_layer, "edge_width"):
+                path_layer.edge_width = 4 if overlay.sweep_id == active_id else 2
+            _set_layer_visibility(path_layer, overlay.sweep_id in trajectory_visible_ids)
 
             centers_layer = self._layers.get(centers_name)
             if centers_layer is None:
                 self._layers[centers_name] = self.viewer.add_points(
                     overlay.trajectory.centers_mm,
                     name=centers_name,
-                    size=5 if overlay.sweep_id == self.app_state.scene_controller.state.active_sweep_id else 4,
+                    size=6 if overlay.sweep_id == active_id else 3,
                     face_color=color,
                     border_color="black",
                 )
                 centers_layer = self._layers[centers_name]
             else:
                 centers_layer.data = overlay.trajectory.centers_mm
-            _set_layer_visibility(centers_layer, overlay.sweep_id in visible_ids)
+            if hasattr(centers_layer, "size"):
+                centers_layer.size = 6 if overlay.sweep_id == active_id else 3
+            _set_layer_visibility(centers_layer, overlay.sweep_id in trajectory_visible_ids)
 
             axes_layer = self._layers.get(axes_name)
             if axes_layer is None:
@@ -343,7 +354,7 @@ class MultiSweepVisualizationUIController:
                 axes_layer = self._layers[axes_name]
             else:
                 axes_layer.data = _vectors_from_trajectory(overlay.trajectory)
-            _set_layer_visibility(axes_layer, overlay.sweep_id in visible_ids)
+            _set_layer_visibility(axes_layer, overlay.sweep_id == active_id if state.show_aggregate_volume else overlay.sweep_id in trajectory_visible_ids)
 
         for sweep in self.app_state.scene.sweeps:
             if sweep.sweep_id in visible_ids:
