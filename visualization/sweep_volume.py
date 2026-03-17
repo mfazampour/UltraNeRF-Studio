@@ -113,6 +113,7 @@ def fuse_sweeps_to_volume(
         voxel_indices = np.rint(voxel_points).astype(np.int32)
 
         flat_values = image[rows.astype(np.int32), cols.astype(np.int32)]
+        finite_mask = np.isfinite(flat_values)
 
         valid_mask = np.logical_and.reduce(
             [
@@ -122,6 +123,7 @@ def fuse_sweeps_to_volume(
                 voxel_indices[:, 1] < volume_shape[1],
                 voxel_indices[:, 2] >= 0,
                 voxel_indices[:, 2] < volume_shape[2],
+                finite_mask,
             ]
         )
 

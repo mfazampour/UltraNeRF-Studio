@@ -100,3 +100,44 @@ def test_fuse_sweeps_to_volume_averages_overlapping_samples():
 
     assert np.allclose(fused.scalar_volume, np.full((2, 2, 1), 2.0, dtype=np.float32))
     assert np.allclose(fused.weight_volume, np.full((2, 2, 1), 2.0, dtype=np.float32))
+
+
+def test_fuse_sweeps_to_volume_skips_nonfinite_samples():
+    images = np.array(
+        [
+            [
+                [1.0, np.nan],
+                [np.inf, 4.0],
+            ]
+        ],
+        dtype=np.float32,
+    )
+    poses = np.stack([np.eye(4, dtype=np.float32)], axis=0)
+    probe_geometry = ProbeGeometry(width_mm=4.0, depth_mm=4.0)
+    volume_geometry = VolumeGeometry(origin_mm=np.array([-1.0, 1.0, 0.0]), spacing_mm=np.array([2.0, 2.0, 1.0]))
+
+    fused = fuse_sweeps_to_volume(
+        images=images,
+        poses_probe_to_world=poses,
+        probe_geometry=probe_geometry,
+        volume_geometry=volume_geometry,
+        volume_shape=(2, 2, 1),
+    )
+
+    expected_scalar = np.array(
+        [
+            [[1.0], [0.0]],
+            [[0.0], [4.0]],
+        ],
+        dtype=np.float32,
+    )
+    expected_weights = np.array(
+        [
+            [[1.0], [0.0]],
+            [[0.0], [1.0]],
+        ],
+        dtype=np.float32,
+    )
+
+    assert np.allclose(fused.scalar_volume, expected_scalar)
+    assert np.allclose(fused.weight_volume, expected_weights)
