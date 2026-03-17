@@ -191,7 +191,7 @@ class VisualizationUIController:
             raise RuntimeError("VisualizationUIController has no render controller configured")
         if self.state is None:
             raise RuntimeError("VisualizationUIController must be initialized before rendering")
-        output = self.render_controller.render_current_pose()
+        output = self.render_controller.render_current_pose(force=True)
         self.state.rendered_output = output
         self.state.comparison_payload = build_comparison_payload(
             rendered_output=output,
@@ -303,6 +303,15 @@ class VisualizationUIController:
         if self.render_controller is None:
             self.render_panel.set_status("Sweep-only mode")
             self.render_panel.set_metadata("No checkpoint configured")
+            return
+        render_state = self.render_controller.state
+        if render_state is not None and render_state.last_error is not None:
+            self.render_panel.set_status("Render failed")
+            self.render_panel.set_metadata(render_state.last_error)
+            return
+        if render_state is not None and render_state.is_rendering:
+            self.render_panel.set_status("Rendering...")
+            self.render_panel.set_metadata("Render in progress")
             return
         if self.state is None or self.state.rendered_output is None:
             self.render_panel.set_status("Ready")

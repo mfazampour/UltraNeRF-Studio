@@ -48,8 +48,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--render-trigger-mode",
         type=str,
         default="manual",
-        choices=("manual", "on_pose_change"),
+        choices=("manual", "on_pose_change", "on_pose_change_throttled"),
         help="When NeRF is enabled, control whether renders happen manually or on probe pose changes",
+    )
+    parser.add_argument(
+        "--min-render-interval-ms",
+        type=float,
+        default=0.0,
+        help="Minimum spacing between automatic renders when throttled mode is active",
     )
     parser.add_argument(
         "--render-height",
@@ -105,6 +111,7 @@ def main() -> int:
             checkpoint_path=checkpoint_path,
             config_path=config_path,
             trigger_mode=args.render_trigger_mode,
+            min_render_interval_ms=args.min_render_interval_ms,
             render_image_shape=render_shape,
             device=args.device,
         )
@@ -122,6 +129,7 @@ def main() -> int:
         "checkpoint_path": str(Path(args.checkpoint_path).resolve()) if args.checkpoint_path is not None else None,
         "config_path": str(Path(args.config_path).resolve()) if nerf_enabled else None,
         "render_trigger_mode": args.render_trigger_mode if nerf_enabled else None,
+        "min_render_interval_ms": args.min_render_interval_ms if nerf_enabled else None,
         "render_image_shape": list(render_shape) if render_shape is not None else None,
     }
     print(json.dumps(summary, indent=2))

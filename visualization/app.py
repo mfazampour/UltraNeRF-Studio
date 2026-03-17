@@ -52,6 +52,7 @@ class NerfLaunchConfig:
     checkpoint_path: Path
     config_path: Path
     trigger_mode: RenderTriggerMode = "manual"
+    min_render_interval_ms: float = 0.0
     render_image_shape: tuple[int, int] | None = None
     device: str | None = None
 
@@ -154,7 +155,11 @@ def build_render_controller(
         probe_depth_mm=state.probe_geometry.depth_mm,
         device=nerf_config.device,
     )
-    return RenderController(nerf_session=nerf_session, trigger_mode=nerf_config.trigger_mode)
+    return RenderController(
+        nerf_session=nerf_session,
+        trigger_mode=nerf_config.trigger_mode,
+        min_render_interval_s=float(nerf_config.min_render_interval_ms) / 1000.0,
+    )
 
 
 def prepare_visualization_app(

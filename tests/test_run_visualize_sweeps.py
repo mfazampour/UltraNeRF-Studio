@@ -104,6 +104,8 @@ def test_run_visualize_sweeps_no_gui_reports_nerf_launch_configuration(tmp_path)
             str(config_path),
             "--render-trigger-mode",
             "manual",
+            "--min-render-interval-ms",
+            "120",
             "--render-height",
             "6",
             "--render-width",
@@ -120,4 +122,5 @@ def test_run_visualize_sweeps_no_gui_reports_nerf_launch_configuration(tmp_path)
     assert summary["checkpoint_path"] == str(checkpoint_path.resolve())
     assert summary["config_path"] == str(config_path.resolve())
     assert summary["render_trigger_mode"] == "manual"
+    assert summary["min_render_interval_ms"] == 120.0
     assert summary["render_image_shape"] == [6, 7]

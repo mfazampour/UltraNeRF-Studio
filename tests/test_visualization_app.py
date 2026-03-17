@@ -110,6 +110,7 @@ def test_build_render_controller_uses_nerf_session_factory_and_trigger_mode(tmp_
             checkpoint_path=checkpoint_path,
             config_path=config_path,
             trigger_mode="on_pose_change",
+            min_render_interval_ms=250.0,
             render_image_shape=(6, 7),
             device="cpu",
         ),
@@ -117,6 +118,7 @@ def test_build_render_controller_uses_nerf_session_factory_and_trigger_mode(tmp_
     )
 
     assert controller.trigger_mode == "on_pose_change"
+    assert controller.min_render_interval_s == 0.25
     assert call_log["image_shape"] == (6, 7)
     assert call_log["probe_width_mm"] == 4.0
     assert call_log["probe_depth_mm"] == 4.0
