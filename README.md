@@ -29,6 +29,12 @@ For a quick folder map, see [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md).
 For the multi-sweep visualization design and QA workflow, see
 [`docs/MULTI_SWEEP_VISUALIZATION.md`](docs/MULTI_SWEEP_VISUALIZATION.md).
 
+Multi-sweep viewer entry point:
+
+```bash
+python run_visualize_multi_sweeps.py --manifest-path <manifest.json>
+```
+
 ### Main training and evaluation scripts
 
 - `run_ultranerf.py`

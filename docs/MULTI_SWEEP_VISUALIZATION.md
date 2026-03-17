@@ -86,6 +86,51 @@ The current backend checks:
 These checks are heuristic. They are intended to flag suspicious offsets, not
 to certify registration quality.
 
+## Launch Workflows
+
+Headless validation:
+
+```bash
+python run_visualize_multi_sweeps.py \
+  --manifest-path data/spine_phantom/multi_sweep_manifest.json \
+  --spacing-mm 1 1 1 \
+  --pixel-stride 4 4 \
+  --no-gui
+```
+
+This prints:
+
+- sweep ids
+- active and enabled sweeps
+- aggregate volume shape
+- alignment warning count
+- detailed alignment warnings
+
+GUI launch:
+
+```bash
+python run_visualize_multi_sweeps.py \
+  --manifest-path data/spine_phantom/multi_sweep_manifest.json \
+  --spacing-mm 1 1 1 \
+  --pixel-stride 4 4
+```
+
+Checkpoint-backed launch:
+
+```bash
+python run_visualize_multi_sweeps.py \
+  --manifest-path data/spine_phantom/multi_sweep_manifest.json \
+  --checkpoint-path logs/vis_r2_gpu_long/002000.tar \
+  --config-path logs/vis_r2_gpu_long/args.txt \
+  --device cuda \
+  --render-trigger-mode manual
+```
+
+If NeRF rendering is enabled, the viewer still operates in the shared
+multi-sweep world frame. The matched comparison frame can come from any enabled
+sweep or from the active sweep only, depending on the selected comparison
+policy.
+
 ## Recommended Manual QA
 
 Use this checklist before trusting a multi-sweep visualization:
@@ -105,6 +150,14 @@ Use this checklist before trusting a multi-sweep visualization:
    - active sweep only mode
 9. If a sweep looks offset, apply or inspect its `world_transform_mm` before
    trusting any fused or comparative view.
+10. Move the probe and verify that the reported matched sweep changes only when
+    the comparison policy and geometry justify it.
+11. Change the active sweep and confirm:
+    - the active trajectory remains visually identifiable
+    - the probe reset index range matches the new active sweep
+12. Disable one sweep at a time and confirm:
+    - its trajectory and per-sweep volume disappear
+    - the aggregate volume updates accordingly
 
 ## Current Backend Pieces
 
@@ -116,6 +169,8 @@ Implemented multi-sweep backend modules:
 - `visualization/multi_sweep_volume.py`
 - `visualization/multi_sweep_comparison.py`
 - `visualization/multi_sweep_ui.py`
+- `visualization/multi_sweep_app.py`
+- `visualization/multi_sweep_napari_ui.py`
 
 These provide:
 
@@ -126,17 +181,34 @@ These provide:
 - aggregate fusion
 - sweep-aware nearest-frame comparison
 - multi-sweep viewer state management
+- multi-sweep napari launch and scene composition
+- multi-sweep control wiring in the live viewer
 
-## Known Gap
+## Current App Behavior
 
-The current napari launch path is still centered on the single-sweep viewer.
+The integrated multi-sweep app is launched through:
 
-The multi-sweep backend is ready, but full app wiring still needs:
+- `run_visualize_multi_sweeps.py`
 
-- a multi-sweep launch entry point
-- napari layer composition for multiple sweeps
-- a dock widget wired into the live viewer session
-- aggregate/per-sweep volume toggling in the running app
+The current viewer supports:
+
+- manifest-driven launch
+- alignment validation summary before the GUI opens
+- aggregate fused volume
+- per-sweep fused volumes
+- per-sweep trajectory overlays
+- active sweep selection
+- enabled-sweep filtering
+- aggregate/per-sweep display switching
+- sweep-aware nearest-frame comparison
+- optional checkpoint-backed NeRF rendering
+
+The main remaining limitations are:
+
+- no dedicated multi-sweep cache strategy beyond the current runtime build path
+- no separate MPR tooling for multi-sweep scenes
+- no specialized 3D picking workflow for sweep-local editing beyond the current
+  probe and dock controls
 
 ## Example Manifest Shape
 
