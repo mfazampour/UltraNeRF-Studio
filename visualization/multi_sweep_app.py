@@ -53,6 +53,22 @@ class _FallbackReviewPanelsWidget:
         self.widgets = widgets
 
 
+def _can_build_multi_view_workspace(viewer: Any) -> bool:
+    """Return True when the main napari viewer exposes embeddable Qt widgets."""
+    window = getattr(viewer, "window", None)
+    if window is None:
+        return False
+    if not hasattr(window, "_qt_window"):
+        return False
+    if not (hasattr(window, "_qt_viewer") or hasattr(window, "qt_viewer")):
+        return False
+    try:
+        from PyQt5.QtWidgets import QApplication
+    except ModuleNotFoundError:
+        return False
+    return QApplication.instance() is not None
+
+
 def _build_review_panels_widget(comparison_widget: Any, render_widget: Any | None) -> Any:
     """Create a vertically stacked right-side review panel when Qt is available."""
     try:
@@ -82,6 +98,64 @@ def _build_review_panels_widget(comparison_widget: Any, render_widget: Any | Non
 
     review_layout.addWidget(review_splitter)
     return review_widget
+
+
+def _hide_main_viewer_side_docks(viewer: Any) -> None:
+    """Hide napari's built-in layer list/controls in the main embedded viewer."""
+    qt_viewer = getattr(viewer.window, "_qt_viewer", None)
+    if qt_viewer is None:
+        qt_viewer = getattr(viewer.window, "qt_viewer", None)
+    if qt_viewer is None:
+        return
+    for name in ("dockLayerList", "_dockLayerList", "dockLayerControls", "_dockLayerControls"):
+        dock = getattr(qt_viewer, name, None)
+        if dock is not None:
+            try:
+                dock.hide()
+            except Exception:
+                pass
+
+
+def _install_multi_view_workspace(
+    viewer: Any,
+    *,
+    comparison_panel: Any,
+    render_panel: Any | None,
+) -> None:
+    """Embed the main 3D viewer and two 2D viewers into one splitter layout."""
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtWidgets import QSplitter, QWidget, QVBoxLayout
+
+    _hide_main_viewer_side_docks(viewer)
+
+    main_qt_viewer = getattr(viewer.window, "_qt_viewer", None)
+    if main_qt_viewer is None:
+        main_qt_viewer = getattr(viewer.window, "qt_viewer", None)
+    if main_qt_viewer is None:
+        raise RuntimeError("Main napari viewer does not expose an embeddable Qt viewer")
+
+    right_stack = QSplitter()
+    right_stack.setOrientation(Qt.Vertical)
+    right_stack.addWidget(comparison_panel.widget)
+    if render_panel is not None:
+        right_stack.addWidget(render_panel.widget)
+        right_stack.setSizes([420, 420])
+    else:
+        right_stack.setSizes([840])
+    right_stack.setChildrenCollapsible(False)
+
+    root_splitter = QSplitter()
+    root_splitter.setOrientation(Qt.Horizontal)
+    root_splitter.addWidget(main_qt_viewer)
+    root_splitter.addWidget(right_stack)
+    root_splitter.setSizes([1200, 560])
+    root_splitter.setChildrenCollapsible(False)
+
+    central_widget = QWidget()
+    layout = QVBoxLayout(central_widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(root_splitter)
+    viewer.window._qt_window.setCentralWidget(central_widget)
 
 
 def resolve_multi_sweep_render_image_shape(
@@ -201,6 +275,8 @@ def launch_multi_sweep_visualization_app(
         render_controller=render_controller,
     )
     if hasattr(viewer, "window"):
+        use_multi_view_workspace = _can_build_multi_view_workspace(viewer)
+
         multi_sweep_controls = create_multi_sweep_controls(
             state.scene_controller,
             on_state_changed=ui_controller.handle_multi_sweep_state_change,
@@ -222,19 +298,39 @@ def launch_multi_sweep_visualization_app(
         viewer.window.add_dock_widget(probe_controls.widget, area="left", name="Probe Controls")
         ui_controller.attach_probe_controls(probe_controls)
 
-        comparison_panel = create_comparison_panel()
-        ui_controller.attach_comparison_panel(comparison_panel)
+        if use_multi_view_workspace:
+            from visualization.embedded_napari_panels import (
+                create_embedded_comparison_panel,
+                create_embedded_render_panel,
+            )
 
-        render_panel = None
-        if render_controller is not None:
-            render_panel = create_render_panel(ui_controller)
-            ui_controller.attach_render_panel(render_panel)
+            comparison_panel = create_embedded_comparison_panel()
+            ui_controller.attach_comparison_panel(comparison_panel)
 
-        review_widget = _build_review_panels_widget(
-            comparison_panel.widget,
-            None if render_panel is None else render_panel.widget,
-        )
-        viewer.window.add_dock_widget(review_widget, area="right", name="Review Panels")
+            render_panel = None
+            if render_controller is not None:
+                render_panel = create_embedded_render_panel(ui_controller)
+                ui_controller.attach_render_panel(render_panel)
+
+            _install_multi_view_workspace(
+                viewer,
+                comparison_panel=comparison_panel,
+                render_panel=render_panel,
+            )
+        else:
+            comparison_panel = create_comparison_panel()
+            ui_controller.attach_comparison_panel(comparison_panel)
+
+            render_panel = None
+            if render_controller is not None:
+                render_panel = create_render_panel(ui_controller)
+                ui_controller.attach_render_panel(render_panel)
+
+            review_widget = _build_review_panels_widget(
+                comparison_panel.widget,
+                None if render_panel is None else render_panel.widget,
+            )
+            viewer.window.add_dock_widget(review_widget, area="right", name="Review Panels")
 
     active_sweep = state.scene.active_sweep
     safe_index = min(max(int(initial_pose_index), 0), active_sweep.frame_count - 1)
