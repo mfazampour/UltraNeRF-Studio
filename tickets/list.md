@@ -114,6 +114,13 @@ The intended end state is:
 - T30
 - T31
 
+### Milestone 7: Multi-Sweep App Integration
+
+- T32
+- T33
+- T34
+- T35
+
 ## Multi-Sweep Follow-Up Tickets
 
 The tickets below extend the single-sweep viewer to support multiple tracked
@@ -149,3 +156,22 @@ Additional dependency notes:
 - T29 depends on T25 and T27.
 - T30 depends on T28 and T29.
 - T31 depends on T24 through T30.
+
+## Multi-Sweep App Integration Tickets
+
+These tickets cover the remaining work needed to make the multi-sweep backend
+available through the running napari application.
+
+Recommended order:
+
+32. [T32 - Add a Multi-Sweep Launch Entry Point and Manifest CLI](T32-add-multi-sweep-launch-entry-point-and-manifest-cli.md)
+33. [T33 - Add Multi-Sweep Scene Composition to Napari](T33-add-multi-sweep-scene-composition-to-napari.md)
+34. [T34 - Wire Multi-Sweep Controls and Comparison Into the Live Viewer](T34-wire-multi-sweep-controls-and-comparison-into-the-live-viewer.md)
+35. [T35 - Add End-to-End Multi-Sweep QA and Example Launch Workflows](T35-add-end-to-end-multi-sweep-qa-and-example-launch-workflows.md)
+
+Additional dependency notes:
+
+- T32 depends on T24 through T31.
+- T33 depends on T28, T30, and T32.
+- T34 depends on T29, T30, T32, and T33.
+- T35 depends on T32 through T34.
