@@ -268,32 +268,36 @@ class MultiSweepVisualizationUIController:
         for overlay in fusion_result.sweep_overlays:
             color = _color_to_hex(overlay.color_rgb, default="#cccc33")
             volume_name = f"sweep_volume__{overlay.sweep_id}"
-            volume_config = build_volume_layer_config_from_preset(
-                overlay.fused_volume,
-                preset_name=self.app_state.preset_name,
-                name=volume_name,
-            )
             layer = self._layers.get(volume_name)
-            if layer is None:
-                self._layers[volume_name] = self.viewer.add_image(
-                    volume_config.data,
-                    scale=volume_config.scale,
-                    translate=volume_config.translate,
-                    name=volume_config.name,
-                    rendering=volume_config.rendering,
-                    colormap=volume_config.colormap,
-                    opacity=max(0.15, volume_config.opacity * 0.6),
-                    blending=volume_config.blending,
-                    contrast_limits=volume_config.contrast_limits,
+            if overlay.fused_volume is not None:
+                volume_config = build_volume_layer_config_from_preset(
+                    overlay.fused_volume,
+                    preset_name=self.app_state.preset_name,
+                    name=volume_name,
                 )
-                layer = self._layers[volume_name]
+                if layer is None:
+                    self._layers[volume_name] = self.viewer.add_image(
+                        volume_config.data,
+                        scale=volume_config.scale,
+                        translate=volume_config.translate,
+                        name=volume_config.name,
+                        rendering=volume_config.rendering,
+                        colormap=volume_config.colormap,
+                        opacity=max(0.15, volume_config.opacity * 0.6),
+                        blending=volume_config.blending,
+                        contrast_limits=volume_config.contrast_limits,
+                    )
+                    layer = self._layers[volume_name]
+                else:
+                    layer.data = volume_config.data
+                    if hasattr(layer, "scale"):
+                        layer.scale = volume_config.scale
+                    if hasattr(layer, "translate"):
+                        layer.translate = volume_config.translate
+                _set_layer_visibility(layer, not self.app_state.scene_controller.state.show_aggregate_volume)
             else:
-                layer.data = volume_config.data
-                if hasattr(layer, "scale"):
-                    layer.scale = volume_config.scale
-                if hasattr(layer, "translate"):
-                    layer.translate = volume_config.translate
-            _set_layer_visibility(layer, not self.app_state.scene_controller.state.show_aggregate_volume)
+                if layer is not None:
+                    _set_layer_visibility(layer, False)
 
             path_name = f"trajectory_path__{overlay.sweep_id}"
             centers_name = f"trajectory_centers__{overlay.sweep_id}"

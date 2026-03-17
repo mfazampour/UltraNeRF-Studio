@@ -26,7 +26,7 @@ class SweepVolumeOverlay:
     display_name: str
     color_rgb: tuple[float, float, float] | None
     enabled: bool
-    fused_volume: FusedSweepVolume
+    fused_volume: FusedSweepVolume | None
     trajectory: TrajectoryOverlay
 
 
@@ -66,19 +66,22 @@ def build_sweep_overlay(
     pixel_stride: tuple[int, int] = (1, 1),
     axis_stride: int = 10,
     fusion_device: FusionDevice = "auto",
+    include_volume: bool = True,
 ) -> SweepVolumeOverlay:
     """Build one per-sweep fused volume plus trajectory overlay."""
-    bounds_min_mm, bounds_max_mm = compute_sweep_bounds_mm(sweep.poses_mm, sweep.probe_geometry)
-    volume_geometry, volume_shape = volume_geometry_from_bounds_mm(bounds_min_mm, bounds_max_mm, spacing_mm)
-    fused_volume = fuse_sweeps_to_volume(
-        images=sweep.images,
-        poses_probe_to_world=sweep.poses_mm,
-        probe_geometry=sweep.probe_geometry,
-        volume_geometry=volume_geometry,
-        volume_shape=volume_shape,
-        pixel_stride=pixel_stride,
-        device=fusion_device,
-    )
+    fused_volume = None
+    if include_volume:
+        bounds_min_mm, bounds_max_mm = compute_sweep_bounds_mm(sweep.poses_mm, sweep.probe_geometry)
+        volume_geometry, volume_shape = volume_geometry_from_bounds_mm(bounds_min_mm, bounds_max_mm, spacing_mm)
+        fused_volume = fuse_sweeps_to_volume(
+            images=sweep.images,
+            poses_probe_to_world=sweep.poses_mm,
+            probe_geometry=sweep.probe_geometry,
+            volume_geometry=volume_geometry,
+            volume_shape=volume_shape,
+            pixel_stride=pixel_stride,
+            device=fusion_device,
+        )
     trajectory = build_trajectory_overlay(sweep.poses_mm, axis_stride=axis_stride)
     return SweepVolumeOverlay(
         sweep_id=sweep.sweep_id,
@@ -98,6 +101,7 @@ def fuse_multi_sweep_scene(
     enabled_sweep_ids: Iterable[str] | None = None,
     axis_stride: int = 10,
     fusion_device: FusionDevice = "auto",
+    include_per_sweep_volumes: bool = True,
 ) -> MultiSweepFusionResult:
     """Fuse several sweeps into one aggregate volume plus per-sweep overlays."""
     if enabled_sweep_ids is None:
@@ -123,6 +127,7 @@ def fuse_multi_sweep_scene(
                 pixel_stride=pixel_stride,
                 axis_stride=axis_stride,
                 fusion_device=fusion_device,
+                include_volume=include_per_sweep_volumes,
             )
         )
         aggregate_images.append(sweep.images)

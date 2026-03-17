@@ -54,3 +54,12 @@ def test_controller_builds_fusion_result_for_enabled_subset() -> None:
 
     assert result.enabled_sweep_ids == ("b",)
     assert tuple(overlay.sweep_id for overlay in result.sweep_overlays) == ("b",)
+
+
+def test_controller_skips_per_sweep_volumes_while_aggregate_mode_is_enabled() -> None:
+    controller = MultiSweepSceneController(make_scene(), spacing_mm=(5.0, 5.0, 5.0), pixel_stride=(2, 2))
+
+    result = controller.build_fusion_result()
+
+    assert result.aggregate_volume.scalar_volume.ndim == 3
+    assert all(overlay.fused_volume is None for overlay in result.sweep_overlays)

@@ -35,6 +35,7 @@ class MultiSweepSceneController:
         self.spacing_mm = tuple(float(v) for v in spacing_mm)
         self.pixel_stride = tuple(int(v) for v in pixel_stride)
         self.fusion_device = str(fusion_device)
+        self._fusion_cache: dict[tuple[tuple[str, ...], bool], MultiSweepFusionResult] = {}
         self.state = MultiSweepViewerState(
             active_sweep_id=scene.active_sweep_id,
             enabled_sweep_ids=tuple(sweep.sweep_id for sweep in (scene.enabled_sweeps or scene.sweeps)),
@@ -84,13 +85,21 @@ class MultiSweepSceneController:
         return self.state
 
     def build_fusion_result(self) -> MultiSweepFusionResult:
-        return fuse_multi_sweep_scene(
+        include_per_sweep_volumes = not self.state.show_aggregate_volume
+        cache_key = (self.state.enabled_sweep_ids, include_per_sweep_volumes)
+        cached = self._fusion_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        fused = fuse_multi_sweep_scene(
             self.scene,
             spacing_mm=self.spacing_mm,
             pixel_stride=self.pixel_stride,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
             fusion_device=self.fusion_device,
+            include_per_sweep_volumes=include_per_sweep_volumes,
         )
+        self._fusion_cache[cache_key] = fused
+        return fused
 
 
 class MultiSweepControlsDockWidget:

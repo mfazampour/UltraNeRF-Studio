@@ -38,6 +38,20 @@ def test_build_sweep_overlay_returns_per_sweep_volume_and_trajectory() -> None:
     assert overlay.trajectory.centers_mm.shape[0] == 2
 
 
+def test_build_sweep_overlay_can_skip_volume_generation() -> None:
+    overlay = build_sweep_overlay(
+        make_sweep("a", 1.0, 0.0),
+        spacing_mm=(5.0, 5.0, 5.0),
+        pixel_stride=(2, 2),
+        axis_stride=1,
+        include_volume=False,
+    )
+
+    assert overlay.sweep_id == "a"
+    assert overlay.fused_volume is None
+    assert overlay.trajectory.centers_mm.shape[0] == 2
+
+
 def test_fuse_multi_sweep_scene_combines_enabled_sweeps_only() -> None:
     scene = MultiSweepScene(
         sweeps=(
@@ -103,3 +117,22 @@ def test_fuse_multi_sweep_scene_uses_transformed_world_poses() -> None:
     result = fuse_multi_sweep_scene(scene, spacing_mm=(5.0, 5.0, 5.0), pixel_stride=(2, 2))
 
     assert result.bounds_min_mm[2] >= 25.0
+
+
+def test_fuse_multi_sweep_scene_can_skip_per_sweep_volumes() -> None:
+    scene = MultiSweepScene(
+        sweeps=(
+            make_sweep("a", 1.0, 0.0),
+            make_sweep("b", 5.0, 40.0),
+        )
+    )
+
+    result = fuse_multi_sweep_scene(
+        scene,
+        spacing_mm=(5.0, 5.0, 5.0),
+        pixel_stride=(2, 2),
+        include_per_sweep_volumes=False,
+    )
+
+    assert result.aggregate_volume.scalar_volume.ndim == 3
+    assert all(overlay.fused_volume is None for overlay in result.sweep_overlays)
