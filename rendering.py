@@ -76,12 +76,20 @@ def gaussian_kernel_3d(size: int, mean: float, std: float):
     return gauss_kernel_3d
 
 
-g_kernel = gaussian_kernel(3, 0.0, 1.0).float().to(device="cuda")
+g_kernel = gaussian_kernel(3, 0.0, 1.0).float()
 
 size = 3
 mean = 0.0
 std = 1.0
-g_kernel3D = gaussian_kernel_3d(size, mean, std).float().to(device="cuda")
+g_kernel3D = gaussian_kernel_3d(size, mean, std).float()
+
+
+def _kernel2d_for(device: torch.device | str) -> torch.Tensor:
+    return g_kernel.to(device=device)
+
+
+def _kernel3d_for(device: torch.device | str) -> torch.Tensor:
+    return g_kernel3D.to(device=device)
 
 
 def rendering(raw_value, FREQUENCY=8e6, log_compression_scale=10):
@@ -110,7 +118,8 @@ def rendering(raw_value, FREQUENCY=8e6, log_compression_scale=10):
 
     batch_size, C, W, H = attenuation_map.shape
 
-    t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
+    render_device = attenuation_map.device
+    t_vals = torch.linspace(0.0, 1.0, H, device=render_device)
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
     dists = torch.abs(z_vals[..., :-1] - z_vals[..., 1:])  # dists.shape=(B, W, H-1, 1)
@@ -141,7 +150,7 @@ def rendering(raw_value, FREQUENCY=8e6, log_compression_scale=10):
     # BACKSCATTERING
     psf_scatter = torch.nn.functional.conv2d(
         input=backscattering_map,
-        weight=g_kernel[None, None, :, :],
+        weight=_kernel2d_for(render_device)[None, None, :, :],
         stride=1,
         padding="same",
     )
@@ -197,7 +206,8 @@ def render_method_3(raw):
 
     batch_size, C, W, H, maps = raw.shape
 
-    t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
+    render_device = raw.device
+    t_vals = torch.linspace(0.0, 1.0, H, device=render_device)
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
 
@@ -238,7 +248,7 @@ def render_method_3(raw):
     scatterers_map = scatterers_density * amplitude
 
     psf_scatter = F.conv2d(
-        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+        scatterers_map, _kernel2d_for(render_device)[None, None, ...], stride=1, padding="same"
     )
     # psf_scatter = torch.squeeze(psf_scatter)
 
@@ -282,7 +292,8 @@ def render_method_ultra_nerf(raw):
 
     batch_size, C, W, H, maps = raw.shape
 
-    t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
+    render_device = raw.device
+    t_vals = torch.linspace(0.0, 1.0, H, device=render_device)
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
 
@@ -324,7 +335,7 @@ def render_method_ultra_nerf(raw):
     scatterers_map = scatterers_density * amplitude
 
     psf_scatter = F.conv2d(
-        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+        scatterers_map, _kernel2d_for(render_device)[None, None, ...], stride=1, padding="same"
     )
     # psf_scatter = torch.squeeze(psf_scatter)
 
@@ -364,7 +375,8 @@ def render_method_cos_theta(raw, d):
 
     batch_size, C, W, H, maps = raw.shape
 
-    t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
+    render_device = raw.device
+    t_vals = torch.linspace(0.0, 1.0, H, device=render_device)
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
 
@@ -411,7 +423,7 @@ def render_method_cos_theta(raw, d):
     scatterers_map = scatterers_density * amplitude
 
     psf_scatter = F.conv2d(
-        scatterers_map, g_kernel[None, None, ...], stride=1, padding="same"
+        scatterers_map, _kernel2d_for(render_device)[None, None, ...], stride=1, padding="same"
     )
     # psf_scatter = torch.squeeze(psf_scatter)
 
@@ -461,7 +473,8 @@ def render_method_3D(raw):
 
     batch_size, C, W, H, maps = raw.shape
 
-    t_vals = torch.linspace(0.0, 1.0, H).to(device="cuda")
+    render_device = raw.device
+    t_vals = torch.linspace(0.0, 1.0, H, device=render_device)
     z_vals = t_vals.expand(batch_size, W, -1)  # * 2
     # calculate the distance between the points we want to sample from
 
@@ -508,7 +521,7 @@ def render_method_3D(raw):
 
     intensity_map = torch.reshape(intensity_map, (7, W, H // 7))[None, ...]
     intensity_map = F.conv3d(
-        intensity_map, g_kernel3D[None, None, ...], stride=[7, 1, 1], padding=[0, 3, 3]
+        intensity_map, _kernel3d_for(render_device)[None, None, ...], stride=[7, 1, 1], padding=[0, 3, 3]
     )
 
     return {
