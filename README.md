@@ -26,6 +26,8 @@ This is not a standard NeRF that predicts RGB and density. The active training p
 The project is script-driven. There is no package layout or single library entry point; most workflows are top-level Python scripts.
 
 For a quick folder map, see [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md).
+For the multi-sweep visualization design and QA workflow, see
+[`docs/MULTI_SWEEP_VISUALIZATION.md`](docs/MULTI_SWEEP_VISUALIZATION.md).
 
 ### Main training and evaluation scripts
 
