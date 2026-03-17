@@ -46,6 +46,44 @@ class MultiSweepLaunchSession:
     render_controller: RenderController | None
 
 
+class _FallbackReviewPanelsWidget:
+    """Non-Qt placeholder used in headless tests without a QApplication."""
+
+    def __init__(self, widgets: tuple[Any, ...]) -> None:
+        self.widgets = widgets
+
+
+def _build_review_panels_widget(comparison_widget: Any, render_widget: Any | None) -> Any:
+    """Create a vertically stacked right-side review panel when Qt is available."""
+    try:
+        from PyQt5.QtCore import Qt
+        from PyQt5.QtWidgets import QApplication, QSplitter, QVBoxLayout, QWidget
+    except ModuleNotFoundError:
+        widgets = (comparison_widget,) if render_widget is None else (comparison_widget, render_widget)
+        return _FallbackReviewPanelsWidget(widgets)
+
+    if QApplication.instance() is None:
+        widgets = (comparison_widget,) if render_widget is None else (comparison_widget, render_widget)
+        return _FallbackReviewPanelsWidget(widgets)
+
+    review_widget = QWidget()
+    review_widget.setMinimumWidth(460)
+    review_layout = QVBoxLayout(review_widget)
+    review_layout.setContentsMargins(0, 0, 0, 0)
+    review_splitter = QSplitter()
+    review_splitter.setOrientation(Qt.Vertical)
+    review_splitter.addWidget(comparison_widget)
+
+    if render_widget is not None:
+        review_splitter.addWidget(render_widget)
+        review_splitter.setSizes([420, 420])
+    else:
+        review_splitter.setSizes([840])
+
+    review_layout.addWidget(review_splitter)
+    return review_widget
+
+
 def resolve_multi_sweep_render_image_shape(
     scene: MultiSweepScene,
     *,
@@ -185,13 +223,18 @@ def launch_multi_sweep_visualization_app(
         ui_controller.attach_probe_controls(probe_controls)
 
         comparison_panel = create_comparison_panel()
-        viewer.window.add_dock_widget(comparison_panel.widget, area="right", name="Nearest Recorded Frame")
         ui_controller.attach_comparison_panel(comparison_panel)
 
+        render_panel = None
         if render_controller is not None:
             render_panel = create_render_panel(ui_controller)
-            viewer.window.add_dock_widget(render_panel.widget, area="right", name="NeRF Render")
             ui_controller.attach_render_panel(render_panel)
+
+        review_widget = _build_review_panels_widget(
+            comparison_panel.widget,
+            None if render_panel is None else render_panel.widget,
+        )
+        viewer.window.add_dock_widget(review_widget, area="right", name="Review Panels")
 
     active_sweep = state.scene.active_sweep
     safe_index = min(max(int(initial_pose_index), 0), active_sweep.frame_count - 1)

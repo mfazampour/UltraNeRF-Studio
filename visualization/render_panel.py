@@ -87,7 +87,7 @@ class RenderOutputDockWidget:
     def __init__(self, ui_controller: Any):
         self.ui_controller = ui_controller
         from PyQt5.QtCore import Qt
-        from PyQt5.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+        from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
         self._Qt = Qt
         self._QLabel = QLabel
@@ -96,14 +96,18 @@ class RenderOutputDockWidget:
         self._QWidget = QWidget
 
         self.widget = QWidget()
+        self.widget.setMinimumWidth(420)
+        self.widget.setMinimumHeight(360)
         layout = QVBoxLayout(self.widget)
 
         self.title_label = QLabel("NeRF Render")
         self.status_label = QLabel("No render yet")
         self.metadata_label = QLabel("No render available")
+        self.metadata_label.setWordWrap(True)
         self.image_label = QLabel("No image")
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setMinimumSize(256, 256)
+        self.image_label.setMinimumSize(420, 320)
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label.setScaledContents(True)
 
         layout.addWidget(self.title_label)

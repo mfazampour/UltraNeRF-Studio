@@ -62,16 +62,20 @@ class ComparisonDockWidget:
 
     def __init__(self):
         from PyQt5.QtCore import Qt
-        from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+        from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
         self.widget = QWidget()
+        self.widget.setMinimumWidth(420)
+        self.widget.setMinimumHeight(360)
         layout = QVBoxLayout(self.widget)
         self.title_label = QLabel("Nearest Recorded Frame")
         self.status_label = QLabel("No comparison available")
         self.metadata_label = QLabel("")
+        self.metadata_label.setWordWrap(True)
         self.image_label = QLabel("No image")
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setMinimumSize(256, 256)
+        self.image_label.setMinimumSize(420, 320)
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label.setScaledContents(True)
 
         layout.addWidget(self.title_label)
