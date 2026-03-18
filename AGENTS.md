@@ -102,7 +102,7 @@ If a new script is added, document what it is for and whether it is baseline, ex
 - Do not assume checkpoints are disposable.
 - Be careful with scripts that write to `logs/`, export meshes, or generate point clouds.
 - Avoid destructive cleanup of outputs unless requested.
-- Any file or directory created in the workspace should be left writable without root access. If a task creates files as root-owned artifacts, adjust permissions before finishing.
+- Any file or directory created or edited in the workspace should be left writable without root access. If a task creates files as root-owned artifacts, adjust permissions before finishing so that everyone can modify those files.
 
 ## When Touching Experimental Code
 

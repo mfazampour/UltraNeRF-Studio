@@ -1,7 +1,7 @@
 {
   "probe_geometry": {
-    "width_mm": 80.0,
-    "depth_mm": 139.0
+    "width_mm": 37.44,
+    "depth_mm": 100.0
   },
   "active_sweep_id": "left1",
   "comparison_policy": "all_enabled",
