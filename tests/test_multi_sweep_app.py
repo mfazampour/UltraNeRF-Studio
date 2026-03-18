@@ -223,7 +223,7 @@ def test_launch_multi_sweep_visualization_app_initializes_fake_viewer(monkeypatc
     assert "sweep_volume__aggregate" in session.viewer.layers
     assert "trajectory_path__sweep_a" in session.viewer.layers
     assert "trajectory_path__sweep_b" not in session.viewer.layers
-    assert "probe_origin" in session.viewer.layers
+    assert "probe_origin" not in session.viewer.layers
     assert session.ui_controller.state.comparison_payload["matched_sweep_id"] in ("sweep_a", "sweep_b")
     dock_areas = {call["name"]: call["area"] for call in session.viewer.window.calls}
     assert dock_areas["Multi-Sweep Controls"] == "right"

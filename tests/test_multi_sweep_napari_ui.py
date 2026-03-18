@@ -156,7 +156,7 @@ def test_initialize_adds_multi_sweep_layers_and_probe() -> None:
     assert "trajectory_path__a" in viewer.layers
     assert "trajectory_path__b" not in viewer.layers
     assert "sweep_volume__a" not in viewer.layers
-    assert "probe_origin" in viewer.layers
+    assert "probe_origin" not in viewer.layers
     assert scene_state.comparison_payload["matched_sweep_id"] in ("a", "b")
     assert "trajectory_axes__a" not in viewer.layers
     assert "trajectory_axes__b" not in viewer.layers

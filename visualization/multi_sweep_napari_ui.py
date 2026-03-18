@@ -420,11 +420,6 @@ class MultiSweepVisualizationUIController:
         representation = build_probe_representation(probe_pose_mm, self.app_state.probe_geometry)
         probe_vectors = _vectors_from_axes(representation.origin_mm, representation.axes_endpoints_mm)
         layer_specs = {
-            "probe_origin": (
-                "points",
-                representation.origin_mm[None, :],
-                {"name": "probe_origin", "size": 8, "face_color": "cyan", "border_color": "black"},
-            ),
             "probe_axes": (
                 "vectors",
                 probe_vectors,
