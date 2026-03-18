@@ -154,7 +154,7 @@ def test_initialize_adds_multi_sweep_layers_and_probe() -> None:
 
     assert "sweep_volume__aggregate" in viewer.layers
     assert "trajectory_path__a" in viewer.layers
-    assert "trajectory_path__b" in viewer.layers
+    assert "trajectory_path__b" not in viewer.layers
     assert "sweep_volume__a" not in viewer.layers
     assert "probe_origin" in viewer.layers
     assert scene_state.comparison_payload["matched_sweep_id"] in ("a", "b")
@@ -194,7 +194,7 @@ def test_aggregate_mode_shows_only_active_sweep_trajectories() -> None:
     controller.initialize()
 
     assert viewer.layers["trajectory_path__a"].visible is True
-    assert viewer.layers["trajectory_path__b"].visible is False
+    assert "trajectory_path__b" not in viewer.layers
 
     controller.set_active_sweep("b")
 

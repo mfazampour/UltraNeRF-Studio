@@ -350,6 +350,8 @@ class MultiSweepVisualizationUIController:
             color = _color_to_hex(overlay.color_rgb, default="#cccc33")
             volume_name = f"sweep_volume__{overlay.sweep_id}"
             layer = self._layers.get(volume_name)
+            trajectory_is_visible = overlay.sweep_id in trajectory_visible_ids
+            volume_is_visible = overlay.fused_volume is not None and not state.show_aggregate_volume
             if overlay.fused_volume is not None:
                 volume_config = build_volume_layer_config_from_preset(
                     overlay.fused_volume,
@@ -377,13 +379,20 @@ class MultiSweepVisualizationUIController:
                         layer.translate = volume_config.translate
                 if hasattr(layer, "opacity"):
                     layer.opacity = max(0.10, min(0.22, volume_config.opacity * 0.45))
-                _set_layer_visibility(layer, not state.show_aggregate_volume)
+                _set_layer_visibility(layer, volume_is_visible)
             else:
                 if layer is not None:
                     _set_layer_visibility(layer, False)
 
             path_name = f"trajectory_path__{overlay.sweep_id}"
             centers_name = f"trajectory_centers__{overlay.sweep_id}"
+            if not trajectory_is_visible:
+                for layer_name in (path_name, centers_name):
+                    existing = self._layers.get(layer_name)
+                    if existing is not None:
+                        _set_layer_visibility(existing, False)
+                if not volume_is_visible:
+                    continue
             path_layer = self._layers.get(path_name)
             if path_layer is None:
                 self._layers[path_name] = self.viewer.add_shapes(
@@ -399,7 +408,7 @@ class MultiSweepVisualizationUIController:
                 path_layer.data = _polyline_shape(overlay.trajectory.polyline_mm)
             if hasattr(path_layer, "edge_width"):
                 path_layer.edge_width = 4 if overlay.sweep_id == active_id else 2
-            _set_layer_visibility(path_layer, overlay.sweep_id in trajectory_visible_ids)
+            _set_layer_visibility(path_layer, trajectory_is_visible)
 
             centers_layer = self._layers.get(centers_name)
             if centers_layer is None:
@@ -415,7 +424,7 @@ class MultiSweepVisualizationUIController:
                 centers_layer.data = overlay.trajectory.centers_mm
             if hasattr(centers_layer, "size"):
                 centers_layer.size = 6 if overlay.sweep_id == active_id else 3
-            _set_layer_visibility(centers_layer, overlay.sweep_id in trajectory_visible_ids)
+            _set_layer_visibility(centers_layer, trajectory_is_visible)
 
         for sweep in self.app_state.scene.sweeps:
             if sweep.sweep_id in visible_ids:
