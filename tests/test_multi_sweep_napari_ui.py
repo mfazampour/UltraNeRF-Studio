@@ -83,6 +83,22 @@ class FakeComparisonPanel:
         self.image = np.asarray(image)
 
 
+class FakeScaledPanel:
+    def __init__(self):
+        self.image = None
+        self.scale_mm = None
+
+    def set_status(self, text):
+        self.status = text
+
+    def set_metadata(self, text):
+        self.metadata = text
+
+    def set_image(self, image, *, scale_mm=None):
+        self.image = np.asarray(image)
+        self.scale_mm = tuple(scale_mm) if scale_mm is not None else None
+
+
 def make_state():
     geometry = ProbeGeometry(width_mm=20.0, depth_mm=20.0)
     images_a = np.ones((2, 4, 5), dtype=np.float32)
@@ -142,6 +158,20 @@ def test_initialize_adds_multi_sweep_layers_and_probe() -> None:
     assert "sweep_volume__a" not in viewer.layers
     assert "probe_origin" in viewer.layers
     assert scene_state.comparison_payload["matched_sweep_id"] in ("a", "b")
+    assert "trajectory_axes__a" not in viewer.layers
+    assert "trajectory_axes__b" not in viewer.layers
+
+
+def test_initialize_reuses_existing_aggregate_layer() -> None:
+    state = make_state()
+    viewer = FakeViewer()
+    preexisting_layer = viewer.add_image(np.zeros((2, 2, 2), dtype=np.float32), name="sweep_volume__aggregate")
+    controller = MultiSweepVisualizationUIController(viewer, state)
+
+    controller.initialize()
+
+    assert controller._layers["sweep_volume__aggregate"] is preexisting_layer
+    assert list(viewer.layers).count("sweep_volume__aggregate") == 1
 
 
 def test_handle_multi_sweep_state_change_updates_visibility() -> None:
@@ -199,3 +229,37 @@ def test_render_now_updates_multi_sweep_comparison_payload() -> None:
 
     assert output["intensity_map"].shape == (4, 5)
     assert controller.state.comparison_payload["matched_sweep_id"] in ("a", "b")
+
+
+def test_snap_probe_to_nearest_uses_all_enabled_sweeps_when_requested() -> None:
+    state = make_state()
+    viewer = FakeViewer()
+    controller = MultiSweepVisualizationUIController(viewer, state)
+    controller.initialize()
+    state.scene_controller.set_comparison_policy("all_enabled")
+
+    pose = np.eye(4, dtype=np.float32)
+    pose[0, 3] = 29.0
+    controller.set_probe_pose(pose)
+    updated = controller.snap_probe_to_nearest_recorded_pose()
+
+    assert state.scene_controller.state.active_sweep_id == "b"
+    assert np.allclose(updated.probe_pose_mm[:3, 3], np.array([30.0, 0.0, 0.0], dtype=np.float32))
+
+
+def test_embedded_panels_receive_physical_pixel_scale() -> None:
+    state = make_state()
+    viewer = FakeViewer()
+    controller = MultiSweepVisualizationUIController(viewer, state)
+    comparison_panel = FakeScaledPanel()
+    render_panel = FakeScaledPanel()
+    controller.attach_comparison_panel(comparison_panel)
+    controller.attach_render_panel(render_panel)
+    render_controller = RenderController(nerf_session=FakeNerfSession(), trigger_mode="manual")
+    controller.render_controller = render_controller
+
+    controller.initialize()
+    controller.render_now()
+
+    assert comparison_panel.scale_mm == (5.0, 4.0)
+    assert render_panel.scale_mm == (5.0, 4.0)

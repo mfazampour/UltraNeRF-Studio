@@ -53,6 +53,9 @@ def test_prepare_multi_sweep_visualization_app_returns_scene_and_alignment(tmp_p
     assert len(state.alignment_validation.per_sweep) == 2
     assert state.fusion_device == "auto"
     assert state.reduction_mode == "max"
+    assert state.startup_profile_log_path is not None
+    assert state.startup_profile_log_path.exists()
+    assert "build_initial_fusion" in state.startup_profile_timings_ms
 
 
 def test_resolve_multi_sweep_render_image_shape_uses_active_sweep() -> None:
@@ -222,3 +225,6 @@ def test_launch_multi_sweep_visualization_app_initializes_fake_viewer(monkeypatc
     assert "trajectory_path__sweep_b" in session.viewer.layers
     assert "probe_origin" in session.viewer.layers
     assert session.ui_controller.state.comparison_payload["matched_sweep_id"] in ("sweep_a", "sweep_b")
+    dock_areas = {call["name"]: call["area"] for call in session.viewer.window.calls}
+    assert dock_areas["Multi-Sweep Controls"] == "right"
+    assert dock_areas["Probe Controls"] == "left"

@@ -9,7 +9,7 @@ import numpy as np
 
 from visualization.comparison_panel import extract_matched_image, format_comparison_metadata
 from visualization.multi_sweep_app import MultiSweepVisualizationAppState
-from visualization.multi_sweep_comparison import build_multi_sweep_comparison_payload
+from visualization.multi_sweep_comparison import build_multi_sweep_comparison_payload, find_multi_sweep_pose_match
 from visualization.multi_sweep_ui import MultiSweepViewerState
 from visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
 from visualization.probe_representation import build_probe_representation
@@ -73,6 +73,25 @@ def _set_layer_visibility(layer: Any, visible: bool) -> None:
         setattr(layer, "visible", bool(visible))
 
 
+def _find_existing_layer_by_name(viewer: Any, name: str) -> Any | None:
+    layers = getattr(viewer, "layers", None)
+    if layers is None:
+        return None
+    if isinstance(layers, dict):
+        return layers.get(name)
+    try:
+        return layers[name]
+    except Exception:
+        pass
+    try:
+        for layer in layers:
+            if getattr(layer, "name", None) == name:
+                return layer
+    except Exception:
+        return None
+    return None
+
+
 def _compute_aggregate_contrast_limits(volume_data: np.ndarray) -> tuple[float, float]:
     """Return aggregate-specific contrast limits with strong low-signal suppression."""
     data = np.asarray(volume_data, dtype=np.float32)
@@ -118,6 +137,21 @@ class MultiSweepVisualizationUIController:
         self.comparison_panel: Any | None = None
         self.multi_sweep_controls: Any | None = None
         self.sweep_selection_controls: Any | None = None
+
+    def _image_pixel_scale_mm(self, image_shape: tuple[int, int], *, sweep_id: str | None = None) -> tuple[float, float]:
+        sweep = self.app_state.scene.get_sweep(sweep_id or self.app_state.scene_controller.state.active_sweep_id)
+        height, width = int(image_shape[0]), int(image_shape[1])
+        return (
+            float(sweep.probe_geometry.depth_mm) / max(height, 1),
+            float(sweep.probe_geometry.width_mm) / max(width, 1),
+        )
+
+    @staticmethod
+    def _set_panel_image(panel: Any, image: np.ndarray, *, scale_mm: tuple[float, float]) -> None:
+        try:
+            panel.set_image(image, scale_mm=scale_mm)
+        except TypeError:
+            panel.set_image(image)
 
     def attach_render_panel(self, render_panel: Any) -> None:
         self.render_panel = render_panel
@@ -231,10 +265,21 @@ class MultiSweepVisualizationUIController:
     def snap_probe_to_nearest_recorded_pose(self) -> MultiSweepSceneState:
         if self.state is None:
             raise RuntimeError("MultiSweepVisualizationUIController must be initialized before use")
-        active_sweep = self.app_state.scene.get_sweep(self.app_state.scene_controller.state.active_sweep_id)
-        centers = active_sweep.poses_mm[:, :3, 3]
-        distances = np.linalg.norm(centers - self.state.probe_pose_mm[:3, 3][None, :], axis=1)
-        return self.set_probe_to_recorded_pose(int(np.argmin(distances)))
+        viewer_state = self.app_state.scene_controller.state
+        match = find_multi_sweep_pose_match(
+            self.state.probe_pose_mm,
+            self.app_state.scene,
+            active_sweep_id=viewer_state.active_sweep_id,
+            comparison_policy=viewer_state.comparison_policy,
+            allowed_sweep_ids=viewer_state.enabled_sweep_ids,
+        )
+        if match.sweep_id != viewer_state.active_sweep_id:
+            self.app_state.scene_controller.set_active_sweep(match.sweep_id)
+            self._refresh_multi_sweep_scene_layers()
+            if self.multi_sweep_controls is not None:
+                self.multi_sweep_controls.refresh()
+            self._refresh_sweep_selection_controls()
+        return self.set_probe_pose(match.matched_pose_mm)
 
     def render_now(self) -> dict[str, Any]:
         if self.render_controller is None:
@@ -271,6 +316,10 @@ class MultiSweepVisualizationUIController:
             name="sweep_volume__aggregate",
         )
         aggregate_layer = self._layers.get("sweep_volume__aggregate")
+        if aggregate_layer is None:
+            aggregate_layer = _find_existing_layer_by_name(self.viewer, "sweep_volume__aggregate")
+            if aggregate_layer is not None:
+                self._layers["sweep_volume__aggregate"] = aggregate_layer
         if aggregate_layer is None:
             self._layers["sweep_volume__aggregate"] = self.viewer.add_image(
                 aggregate_config.data,
@@ -335,7 +384,6 @@ class MultiSweepVisualizationUIController:
 
             path_name = f"trajectory_path__{overlay.sweep_id}"
             centers_name = f"trajectory_centers__{overlay.sweep_id}"
-            axes_name = f"trajectory_axes__{overlay.sweep_id}"
             path_layer = self._layers.get(path_name)
             if path_layer is None:
                 self._layers[path_name] = self.viewer.add_shapes(
@@ -369,24 +417,10 @@ class MultiSweepVisualizationUIController:
                 centers_layer.size = 6 if overlay.sweep_id == active_id else 3
             _set_layer_visibility(centers_layer, overlay.sweep_id in trajectory_visible_ids)
 
-            axes_layer = self._layers.get(axes_name)
-            if axes_layer is None:
-                self._layers[axes_name] = self.viewer.add_vectors(
-                    _vectors_from_trajectory(overlay.trajectory),
-                    name=axes_name,
-                    edge_color=color,
-                    vector_style="line",
-                    edge_width=1,
-                )
-                axes_layer = self._layers[axes_name]
-            else:
-                axes_layer.data = _vectors_from_trajectory(overlay.trajectory)
-            _set_layer_visibility(axes_layer, overlay.sweep_id == active_id if state.show_aggregate_volume else overlay.sweep_id in trajectory_visible_ids)
-
         for sweep in self.app_state.scene.sweeps:
             if sweep.sweep_id in visible_ids:
                 continue
-            for prefix in ("sweep_volume__", "trajectory_path__", "trajectory_centers__", "trajectory_axes__"):
+            for prefix in ("sweep_volume__", "trajectory_path__", "trajectory_centers__"):
                 layer = self._layers.get(f"{prefix}{sweep.sweep_id}")
                 if layer is not None:
                     _set_layer_visibility(layer, False)
@@ -467,9 +501,14 @@ class MultiSweepVisualizationUIController:
             self.render_panel.set_status("Ready")
             self.render_panel.set_metadata("No render available")
             return
+        render_image = extract_render_image(self.state.rendered_output)
         self.render_panel.set_status("Rendered")
         self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
-        self.render_panel.set_image(extract_render_image(self.state.rendered_output))
+        self._set_panel_image(
+            self.render_panel,
+            render_image,
+            scale_mm=self._image_pixel_scale_mm(render_image.shape[-2:]),
+        )
 
     def _refresh_probe_controls(self) -> None:
         if self.probe_controls is None or self.state is None:
@@ -504,4 +543,12 @@ class MultiSweepVisualizationUIController:
             return
         self.comparison_panel.set_status("Comparison ready")
         self.comparison_panel.set_metadata(format_comparison_metadata(self.state.comparison_payload))
-        self.comparison_panel.set_image(extract_matched_image(self.state.comparison_payload))
+        matched_image = extract_matched_image(self.state.comparison_payload)
+        self._set_panel_image(
+            self.comparison_panel,
+            matched_image,
+            scale_mm=self._image_pixel_scale_mm(
+                matched_image.shape[-2:],
+                sweep_id=self.state.comparison_payload.get("matched_sweep_id"),
+            ),
+        )

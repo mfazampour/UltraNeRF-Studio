@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Any
+import json
 
 import numpy as np
 
@@ -31,6 +33,8 @@ class MultiSweepVisualizationAppState:
     cache_root: Path | None = None
     fusion_device: FusionDevice = "auto"
     reduction_mode: FusionReductionMode = "max"
+    startup_profile_log_path: Path | None = None
+    startup_profile_timings_ms: dict[str, float] | None = None
 
     @property
     def probe_geometry(self):
@@ -45,6 +49,39 @@ class MultiSweepLaunchSession:
     ui_controller: Any
     scene_controller: MultiSweepSceneController
     render_controller: RenderController | None
+
+
+class StartupProfiler:
+    """Collect simple wall-clock timings for the multi-sweep startup path."""
+
+    def __init__(self) -> None:
+        self._start = time.perf_counter()
+        self._last = self._start
+        self.timings_ms: dict[str, float] = {}
+
+    def mark(self, stage: str) -> None:
+        now = time.perf_counter()
+        self.timings_ms[str(stage)] = float((now - self._last) * 1000.0)
+        self._last = now
+
+    def mark_total(self) -> None:
+        now = time.perf_counter()
+        self.timings_ms["total"] = float((now - self._start) * 1000.0)
+
+
+def _resolve_startup_profile_log_path(manifest_path: Path | None) -> Path:
+    stem = manifest_path.stem if manifest_path is not None else "multi_sweep"
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+    return Path("logs") / "visualization" / "profiling" / f"{stem}_{timestamp}.json"
+
+
+def _write_startup_profile_log(path: Path, *, manifest_path: Path | None, timings_ms: dict[str, float]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "manifest_path": str(manifest_path.resolve()) if manifest_path is not None else None,
+        "timings_ms": {str(k): float(v) for k, v in timings_ms.items()},
+    }
+    path.write_text(json.dumps(payload, indent=2))
 
 
 class _FallbackReviewPanelsWidget:
@@ -225,8 +262,10 @@ def prepare_multi_sweep_visualization_app(
     reduction_mode: FusionReductionMode = "max",
 ) -> MultiSweepVisualizationAppState:
     """Load and validate a multi-sweep scene for visualization."""
+    profiler = StartupProfiler()
     manifest = Path(manifest_path)
     scene = load_multi_sweep_scene_from_manifest(manifest)
+    profiler.mark("load_manifest_and_sweeps")
     scene_controller = MultiSweepSceneController(
         scene,
         spacing_mm=spacing_mm,
@@ -235,7 +274,16 @@ def prepare_multi_sweep_visualization_app(
         reduction_mode=reduction_mode,
     )
     fusion_result = scene_controller.build_fusion_result()
+    profiler.mark("build_initial_fusion")
     alignment_validation = validate_multi_sweep_alignment(scene)
+    profiler.mark("validate_alignment")
+    profiler.mark_total()
+    startup_profile_log_path = _resolve_startup_profile_log_path(manifest)
+    _write_startup_profile_log(
+        startup_profile_log_path,
+        manifest_path=manifest,
+        timings_ms=profiler.timings_ms,
+    )
     return MultiSweepVisualizationAppState(
         manifest_path=manifest,
         scene=scene,
@@ -246,6 +294,8 @@ def prepare_multi_sweep_visualization_app(
         cache_root=Path(cache_root) if cache_root is not None else None,
         fusion_device=fusion_device,
         reduction_mode=reduction_mode,
+        startup_profile_log_path=startup_profile_log_path,
+        startup_profile_timings_ms=dict(profiler.timings_ms),
     )
 
 
@@ -257,6 +307,7 @@ def launch_multi_sweep_visualization_app(
     nerf_config: NerfLaunchConfig | None = None,
 ) -> MultiSweepLaunchSession:
     """Launch a napari multi-sweep session."""
+    profiler = StartupProfiler()
     from visualization.comparison_panel import create_comparison_panel
     from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController
     from visualization.multi_sweep_ui import create_multi_sweep_controls, create_sweep_selection_controls
@@ -273,6 +324,7 @@ def launch_multi_sweep_visualization_app(
         preset_name=state.preset_name,
         layer_kwargs={"name": "sweep_volume__aggregate"},
     )
+    profiler.mark("launch_main_viewer")
     ui_controller = MultiSweepVisualizationUIController(
         viewer,
         state,
@@ -285,7 +337,7 @@ def launch_multi_sweep_visualization_app(
             state.scene_controller,
             on_state_changed=ui_controller.handle_multi_sweep_state_change,
         )
-        viewer.window.add_dock_widget(multi_sweep_controls.widget, area="left", name="Multi-Sweep Controls")
+        viewer.window.add_dock_widget(multi_sweep_controls.widget, area="right", name="Multi-Sweep Controls")
         ui_controller.attach_multi_sweep_controls(multi_sweep_controls)
 
         sweep_selection_controls = create_sweep_selection_controls(
@@ -321,6 +373,7 @@ def launch_multi_sweep_visualization_app(
                 comparison_panel=comparison_panel,
                 render_panel=render_panel,
             )
+            profiler.mark("build_multi_view_workspace")
         else:
             comparison_panel = create_comparison_panel()
             ui_controller.attach_comparison_panel(comparison_panel)
@@ -335,10 +388,22 @@ def launch_multi_sweep_visualization_app(
                 None if render_panel is None else render_panel.widget,
             )
             viewer.window.add_dock_widget(review_widget, area="right", name="Review Panels")
+            profiler.mark("build_dock_review_workspace")
 
     active_sweep = state.scene.active_sweep
     safe_index = min(max(int(initial_pose_index), 0), active_sweep.frame_count - 1)
     ui_controller.initialize(active_sweep.poses_mm[safe_index])
+    profiler.mark("initialize_scene_layers")
+    profiler.mark_total()
+    merged_timings = dict(state.startup_profile_timings_ms or {})
+    merged_timings.update(profiler.timings_ms)
+    if state.startup_profile_log_path is not None:
+        _write_startup_profile_log(
+            state.startup_profile_log_path,
+            manifest_path=state.manifest_path,
+            timings_ms=merged_timings,
+        )
+        state.startup_profile_timings_ms = merged_timings
     return MultiSweepLaunchSession(
         viewer=viewer,
         ui_controller=ui_controller,

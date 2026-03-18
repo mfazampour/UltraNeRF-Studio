@@ -66,6 +66,8 @@ def test_run_visualize_multi_sweeps_no_gui_prints_summary(tmp_path: Path) -> Non
     assert summary["nerf_enabled"] is False
     assert summary["fusion_device"] == "auto"
     assert summary["fusion_reduction"] == "max"
+    assert summary["startup_profile_log_path"] is not None
+    assert "build_initial_fusion" in summary["startup_profile_timings_ms"]
     assert "alignment_warning_count" in summary
 
 
@@ -108,3 +110,4 @@ def test_run_visualize_multi_sweeps_no_gui_reports_nerf_config(tmp_path: Path) -
     assert summary["render_image_shape"] == [8, 9]
     assert summary["fusion_device"] == "auto"
     assert summary["fusion_reduction"] == "max"
+    assert summary["startup_profile_log_path"] is not None

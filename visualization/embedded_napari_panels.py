@@ -77,18 +77,22 @@ class EmbeddedNapariImagePanel:
     def set_metadata(self, text: str) -> None:
         self.metadata_label.setText(str(text))
 
-    def set_image(self, image: np.ndarray) -> None:
+    def set_image(self, image: np.ndarray, *, scale_mm: tuple[float, float] | None = None) -> None:
         display_buffer = self._image_normalizer(np.asarray(image))
         rgb = bool(display_buffer.ndim == 3 and display_buffer.shape[-1] in (3, 4))
         if self._image_layer is None:
             kwargs = {"name": "image"}
             if not rgb:
                 kwargs["colormap"] = "gray"
+            if scale_mm is not None:
+                kwargs["scale"] = tuple(float(v) for v in scale_mm)
             self._image_layer = self.viewer.add_image(display_buffer, rgb=rgb, **kwargs)
         else:
             self._image_layer.data = display_buffer
             if hasattr(self._image_layer, "rgb"):
                 self._image_layer.rgb = rgb
+            if scale_mm is not None and hasattr(self._image_layer, "scale"):
+                self._image_layer.scale = tuple(float(v) for v in scale_mm)
         try:
             self.viewer.reset_view()
         except Exception:

@@ -117,6 +117,8 @@ def main() -> int:
         "preset": state.preset_name,
         "fusion_device": state.fusion_device,
         "fusion_reduction": state.reduction_mode,
+        "startup_profile_log_path": str(state.startup_profile_log_path.resolve()) if state.startup_profile_log_path is not None else None,
+        "startup_profile_timings_ms": dict(state.startup_profile_timings_ms or {}),
         "nerf_enabled": nerf_enabled,
         "checkpoint_path": str(Path(args.checkpoint_path).resolve()) if nerf_enabled else None,
         "config_path": str(Path(args.config_path).resolve()) if nerf_enabled else None,
