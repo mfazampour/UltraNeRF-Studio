@@ -162,6 +162,7 @@ def test_initialize_adds_multi_sweep_layers_and_probe() -> None:
     assert "trajectory_axes__b" not in viewer.layers
     assert "trajectory_centers__a" not in viewer.layers
     assert "trajectory_centers__b" not in viewer.layers
+    assert "probe_face_line" not in viewer.layers
 
 
 def test_initialize_reuses_existing_aggregate_layer() -> None:

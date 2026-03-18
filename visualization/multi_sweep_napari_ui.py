@@ -452,17 +452,6 @@ class MultiSweepVisualizationUIController:
                     "face_color": "transparent",
                 },
             ),
-            "probe_face_line": (
-                "shapes",
-                _line_shape(representation.probe_face_line_mm),
-                {
-                    "name": "probe_face_line",
-                    "shape_type": "line",
-                    "edge_color": "cyan",
-                    "edge_width": 3,
-                    "face_color": "transparent",
-                },
-            ),
         }
         for layer_name, (layer_type, data, kwargs) in layer_specs.items():
             layer = self._layers.get(layer_name)
