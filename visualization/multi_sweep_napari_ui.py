@@ -385,12 +385,10 @@ class MultiSweepVisualizationUIController:
                     _set_layer_visibility(layer, False)
 
             path_name = f"trajectory_path__{overlay.sweep_id}"
-            centers_name = f"trajectory_centers__{overlay.sweep_id}"
             if not trajectory_is_visible:
-                for layer_name in (path_name, centers_name):
-                    existing = self._layers.get(layer_name)
-                    if existing is not None:
-                        _set_layer_visibility(existing, False)
+                existing = self._layers.get(path_name)
+                if existing is not None:
+                    _set_layer_visibility(existing, False)
                 if not volume_is_visible:
                     continue
             path_layer = self._layers.get(path_name)
@@ -410,26 +408,10 @@ class MultiSweepVisualizationUIController:
                 path_layer.edge_width = 4 if overlay.sweep_id == active_id else 2
             _set_layer_visibility(path_layer, trajectory_is_visible)
 
-            centers_layer = self._layers.get(centers_name)
-            if centers_layer is None:
-                self._layers[centers_name] = self.viewer.add_points(
-                    overlay.trajectory.centers_mm,
-                    name=centers_name,
-                    size=6 if overlay.sweep_id == active_id else 3,
-                    face_color=color,
-                    border_color="black",
-                )
-                centers_layer = self._layers[centers_name]
-            else:
-                centers_layer.data = overlay.trajectory.centers_mm
-            if hasattr(centers_layer, "size"):
-                centers_layer.size = 6 if overlay.sweep_id == active_id else 3
-            _set_layer_visibility(centers_layer, trajectory_is_visible)
-
         for sweep in self.app_state.scene.sweeps:
             if sweep.sweep_id in visible_ids:
                 continue
-            for prefix in ("sweep_volume__", "trajectory_path__", "trajectory_centers__"):
+            for prefix in ("sweep_volume__", "trajectory_path__"):
                 layer = self._layers.get(f"{prefix}{sweep.sweep_id}")
                 if layer is not None:
                     _set_layer_visibility(layer, False)

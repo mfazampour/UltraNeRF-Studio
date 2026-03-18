@@ -28,7 +28,7 @@
 - Status: Fixed
 - Problem: The coordinate axes currently shown for frames add visual clutter and are not useful in practice.
 - Expected behavior: Remove these frame axes from the default visualization.
-- Resolution: Per-frame trajectory axes are no longer created in the default multi-sweep scene.
+- Resolution: Per-frame trajectory axes and per-frame center markers are no longer created in the default multi-sweep scene; only the trajectory path remains.
 
 ## Issue 6: `Snap To Nearest` Does Not Search Across All Sweeps
 - Status: Fixed
