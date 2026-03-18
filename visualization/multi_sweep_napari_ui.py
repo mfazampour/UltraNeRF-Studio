@@ -398,14 +398,14 @@ class MultiSweepVisualizationUIController:
                     shape_type="path",
                     name=path_name,
                     edge_color=color,
-                    edge_width=4 if overlay.sweep_id == active_id else 2,
+                    edge_width=2 if overlay.sweep_id == active_id else 1,
                     face_color="transparent",
                 )
                 path_layer = self._layers[path_name]
             else:
                 path_layer.data = _polyline_shape(overlay.trajectory.polyline_mm)
             if hasattr(path_layer, "edge_width"):
-                path_layer.edge_width = 4 if overlay.sweep_id == active_id else 2
+                path_layer.edge_width = 2 if overlay.sweep_id == active_id else 1
             _set_layer_visibility(path_layer, trajectory_is_visible)
 
         for sweep in self.app_state.scene.sweeps:
