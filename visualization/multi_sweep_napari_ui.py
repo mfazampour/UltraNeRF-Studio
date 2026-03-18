@@ -340,7 +340,7 @@ class MultiSweepVisualizationUIController:
             if hasattr(aggregate_layer, "translate"):
                 aggregate_layer.translate = aggregate_config.translate
         if hasattr(aggregate_layer, "opacity"):
-            aggregate_layer.opacity = min(float(aggregate_config.opacity), 0.10)
+            aggregate_layer.opacity = 0.50
         if hasattr(aggregate_layer, "contrast_limits"):
             aggregate_layer.contrast_limits = _compute_aggregate_contrast_limits(aggregate_config.data)
         _set_layer_visibility(aggregate_layer, state.show_aggregate_volume)
