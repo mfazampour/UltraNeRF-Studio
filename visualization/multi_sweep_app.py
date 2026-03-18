@@ -77,11 +77,19 @@ def _resolve_startup_profile_log_path(manifest_path: Path | None) -> Path:
 
 def _write_startup_profile_log(path: Path, *, manifest_path: Path | None, timings_ms: dict[str, float]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.chmod(0o777)
+    except OSError:
+        pass
     payload = {
         "manifest_path": str(manifest_path.resolve()) if manifest_path is not None else None,
         "timings_ms": {str(k): float(v) for k, v in timings_ms.items()},
     }
     path.write_text(json.dumps(payload, indent=2))
+    try:
+        path.chmod(0o666)
+    except OSError:
+        pass
 
 
 class _FallbackReviewPanelsWidget:
