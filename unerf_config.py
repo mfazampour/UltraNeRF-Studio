@@ -22,8 +22,8 @@ def config_parser():
     parser.add_argument("--ssim_filter_size", type=int, default=7)
     parser.add_argument("--ssim_lambda", type=float, default=0.75)
     parser.add_argument("--loss", type=str, default="l2")
-    parser.add_argument("--probe_depth", type=int, default=140)
-    parser.add_argument("--probe_width", type=int, default=80)
+    parser.add_argument("--probe_depth", type=float, default=140.0)
+    parser.add_argument("--probe_width", type=float, default=80.0)
     parser.add_argument("--output_ch", type=int, default=5)
 
     parser.add_argument("--tensorboard", action="store_true")
