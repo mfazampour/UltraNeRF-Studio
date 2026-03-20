@@ -1,7 +1,7 @@
 # Repository Layout
 
-This repository is script-driven. The top-level Python files are not all equal in
-importance, so use this map when deciding where to start.
+This repository is script-driven. The top-level Python files are CLI entry
+points. Reusable library code lives under `src/ultranerf/`.
 
 ## Main Entry Points
 
@@ -25,22 +25,22 @@ importance, so use this map when deciding where to start.
 
 ## Core Implementation Files
 
-- `model.py`
+- `src/ultranerf/model.py`
   Main PyTorch model definitions.
 
-- `nerf_utils.py`
+- `src/ultranerf/nerf_utils.py`
   Model creation, embedding, rendering dispatch, and loss helpers.
 
-- `rendering.py`
+- `src/ultranerf/rendering.py`
   Ultrasound-specific rendering logic.
 
-- `load_us.py`
+- `src/ultranerf/load_us.py`
   Dataset loading and pose preprocessing.
 
-- `unerf_config.py`
+- `src/ultranerf/unerf_config.py`
   Shared config parser for the main training paths.
 
-- `camera.py`
+- `src/ultranerf/camera.py`
   Pose and Lie algebra utilities.
 
 ## Supporting Directories
@@ -51,8 +51,11 @@ importance, so use this map when deciding where to start.
 - `data/`
   Datasets and sample inputs.
 
-- `rendering_utils/`
+- `src/ultranerf/rendering_utils/`
   Reflection and denoising helpers used by the renderer.
+
+- `src/ultranerf/visualization/`
+  Visualization and napari UI modules.
 
 - `scripts/`
   Small preprocessing or conversion utilities.
@@ -67,10 +70,10 @@ importance, so use this map when deciding where to start.
 
 1. `README.md`
 2. `run_ultranerf.py`
-3. `unerf_config.py`
-4. `load_us.py`
-5. `nerf_utils.py`
-6. `model.py`
-7. `rendering.py`
+3. `src/ultranerf/unerf_config.py`
+4. `src/ultranerf/load_us.py`
+5. `src/ultranerf/nerf_utils.py`
+6. `src/ultranerf/model.py`
+7. `src/ultranerf/rendering.py`
 8. `run_barf.py`
 9. `run_ultranerf_reconstruction.py`

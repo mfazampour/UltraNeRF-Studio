@@ -163,14 +163,14 @@ Use this checklist before trusting a multi-sweep visualization:
 
 Implemented multi-sweep backend modules:
 
-- `visualization/multi_sweep.py`
-- `visualization/multi_sweep_loader.py`
-- `visualization/alignment_validation.py`
-- `visualization/multi_sweep_volume.py`
-- `visualization/multi_sweep_comparison.py`
-- `visualization/multi_sweep_ui.py`
-- `visualization/multi_sweep_app.py`
-- `visualization/multi_sweep_napari_ui.py`
+- `src/ultranerf/visualization/multi_sweep.py`
+- `src/ultranerf/visualization/multi_sweep_loader.py`
+- `src/ultranerf/visualization/alignment_validation.py`
+- `src/ultranerf/visualization/multi_sweep_volume.py`
+- `src/ultranerf/visualization/multi_sweep_comparison.py`
+- `src/ultranerf/visualization/multi_sweep_ui.py`
+- `src/ultranerf/visualization/multi_sweep_app.py`
+- `src/ultranerf/visualization/multi_sweep_napari_ui.py`
 
 These provide:
 

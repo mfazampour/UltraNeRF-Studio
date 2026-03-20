@@ -6,7 +6,7 @@ The key decision is:
 
 - the visualization stack uses **millimeters**
 - the current training and rendering code internally uses **meters** in several
-  places because `load_us.py` scales pose translation by `0.001`
+  places because `src/ultranerf/load_us.py` scales pose translation by `0.001`
 
 Any visualization code that calls the existing NeRF renderer should therefore
 perform a single explicit conversion from millimeters to meters at the inference
@@ -140,7 +140,7 @@ system as the visualization stack.
 
 Important existing behavior:
 
-- `load_us.py` scales pose translations from millimeters to meters
+- `src/ultranerf/load_us.py` scales pose translations from millimeters to meters
 - probe width and probe depth are converted with a `0.001` factor in training
   scripts
 
@@ -154,7 +154,7 @@ Therefore:
   meter-scale values if the existing runtime requires it
 
 This conversion boundary should be centralized in the future
-`visualization/nerf_session.py` implementation.
+`src/ultranerf/visualization/nerf_session.py` implementation.
 
 ## Pixel-to-World Mapping
 

@@ -24,7 +24,8 @@ This is not a standard NeRF that predicts RGB and density. The active training p
 ## Documentation
 
 The project is script-driven. There is no package layout or single library
-entry point; most workflows are top-level Python scripts.
+entry point; the repository root contains runnable scripts, while reusable code
+now lives under `src/ultranerf/`.
 
 Start here:
 
@@ -91,28 +92,28 @@ docs instead of this README.
 
 ### Core modules
 
-- `load_us.py`
+- `src/ultranerf/load_us.py`
   Dataset loading and pose preprocessing.
 
-- `model.py`
+- `src/ultranerf/model.py`
   Defines the MLPs:
   - `NeRF`: baseline ultrasound field model
   - `BARF`: NeRF with coarse-to-fine positional encoding for pose refinement
   - `Reconstruction`: occupancy / segmentation style head
   - `PoseRefine`: learned SE(3) pose offsets
 
-- `nerf_utils.py`
+- `src/ultranerf/nerf_utils.py`
   Model creation, positional encoding, ray batching, rendering dispatch, and loss helpers.
 
-- `rendering.py`
+- `src/ultranerf/rendering.py`
   Ultrasound-specific forward model. This is the most important file for understanding how predicted 3D quantities become a 2D ultrasound image.
 
-- `camera.py`
+- `src/ultranerf/camera.py`
   Pose and Lie algebra utilities used by BARF pose refinement.
 
 ### Utilities and experiments
 
-- `rendering_utils/`
+- `src/ultranerf/rendering_utils/`
   Helper functions for reflection modeling and wavelet-based denoising / backscatter extraction.
 
 - `legacy/occupancy_network.py`
@@ -131,7 +132,7 @@ docs instead of this README.
 
 ### 1. Data loading
 
-`load_us.py` loads arrays from disk and normalizes them for training.
+`src/ultranerf/load_us.py` loads arrays from disk and normalizes them for training.
 
 Expected baseline files in a dataset directory:
 
@@ -156,7 +157,7 @@ The bundled sample dataset under `data/synthetic_testing/l2` includes baseline i
 
 The repo uses a linear probe model, not a pinhole camera model.
 
-`get_rays_us_linear()` in `nerf_utils.py` creates:
+`get_rays_us_linear()` in `src/ultranerf/nerf_utils.py` creates:
 
 - one ray origin per lateral probe position
 - one shared forward ray direction
@@ -181,7 +182,7 @@ The main models are:
 
 ### 4. Ultrasound rendering
 
-`rendering.py` contains several rendering variants. The active path used by the main renderer is `render_method_3()`.
+`src/ultranerf/rendering.py` contains several rendering variants. The active path used by the main renderer is `render_method_3()`.
 
 Conceptually it does the following:
 
@@ -194,8 +195,8 @@ Conceptually it does the following:
 
 The main rendering entry points are:
 
-- `render_us()` in `nerf_utils.py`
-- `render_rays_us()` in `rendering.py`
+- `render_us()` in `src/ultranerf/nerf_utils.py`
+- `render_rays_us()` in `src/ultranerf/rendering.py`
 
 ## Main workflows
 
@@ -215,7 +216,7 @@ What it does:
 - optimizes image-space loss, optionally with regularization
 - writes checkpoints to `logs/<expname>/`
 
-Configuration is parsed from `unerf_config.py`, with example configs in `configs/`.
+Configuration is parsed from `src/ultranerf/unerf_config.py`, with example configs in `configs/`.
 
 ### BARF pose refinement
 
@@ -341,7 +342,7 @@ This is research code and it shows. A few important points:
 
 - The main code path is the baseline renderer in `run_ultranerf.py`.
 - Several scripts duplicate logic rather than sharing common abstractions.
-- Multiple rendering variants exist in `rendering.py`, but the active training path is hardwired to `render_method_3()`.
+- Multiple rendering variants exist in `src/ultranerf/rendering.py`, but the active training path is hardwired to `render_method_3()`.
 - The common config value `output_ch = 5` is broader than what the active renderer actually consumes in its default path.
 - Some scripts contain commented-out branches and experimental code paths.
 - Test coverage is minimal.
@@ -355,11 +356,11 @@ That said, the core training loop, pose-refinement loop, and visualization / exp
 If you are new to the codebase, read files in this order:
 
 1. `run_ultranerf.py`
-2. `unerf_config.py`
-3. `load_us.py`
-4. `nerf_utils.py`
-5. `model.py`
-6. `rendering.py`
+2. `src/ultranerf/unerf_config.py`
+3. `src/ultranerf/load_us.py`
+4. `src/ultranerf/nerf_utils.py`
+5. `src/ultranerf/model.py`
+6. `src/ultranerf/rendering.py`
 7. `run_barf.py`
 8. `run_ultranerf_reconstruction.py`
 
