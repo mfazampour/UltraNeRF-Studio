@@ -386,6 +386,7 @@ class MultiSweepVisualizationUIController:
             "manifest_path": str(self.app_state.manifest_path.resolve()) if self.app_state.manifest_path is not None else None,
             "active_sweep_id": state.active_sweep_id,
             "enabled_sweep_ids": list(state.enabled_sweep_ids),
+            "visible_sweep_ids": list(state.visible_sweep_ids),
             "comparison_policy": state.comparison_policy,
             "show_aggregate_volume": bool(state.show_aggregate_volume),
             "timings_ms": {str(k): float(v) for k, v in timings_ms.items()},
@@ -402,7 +403,7 @@ class MultiSweepVisualizationUIController:
         self.app_state.fusion_result = fusion_result
         state = self.app_state.scene_controller.state
         active_id = state.active_sweep_id
-        trajectory_visible_ids = {active_id} if state.show_aggregate_volume else set(fusion_result.enabled_sweep_ids)
+        trajectory_visible_ids = {active_id} if state.show_aggregate_volume else set(state.visible_sweep_ids)
         profile_timings["build_fusion_result_ms"] = float((after_fusion - tick) * 1000.0)
 
         aggregate_tick = time.perf_counter()
@@ -443,7 +444,7 @@ class MultiSweepVisualizationUIController:
         after_aggregate = time.perf_counter()
         profile_timings["refresh_aggregate_layer_ms"] = float((after_aggregate - aggregate_tick) * 1000.0)
 
-        visible_ids = set(fusion_result.enabled_sweep_ids)
+        visible_ids = set(state.visible_sweep_ids)
         overlay_tick = time.perf_counter()
         for overlay in fusion_result.sweep_overlays:
             color = _color_to_hex(overlay.color_rgb, default="#cccc33")

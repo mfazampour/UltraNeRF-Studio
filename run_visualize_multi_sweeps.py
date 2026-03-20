@@ -107,6 +107,7 @@ def main() -> int:
         "sweep_ids": list(state.scene.sweep_ids),
         "active_sweep_id": state.scene_controller.state.active_sweep_id,
         "enabled_sweep_ids": list(state.scene_controller.state.enabled_sweep_ids),
+        "visible_sweep_ids": list(state.scene_controller.state.visible_sweep_ids),
         "aggregate_volume_shape": list(state.fusion_result.aggregate_volume.scalar_volume.shape),
         "spacing_mm": state.fusion_result.aggregate_volume.spacing_mm.tolist(),
         "origin_mm": state.fusion_result.aggregate_volume.origin_mm.tolist(),

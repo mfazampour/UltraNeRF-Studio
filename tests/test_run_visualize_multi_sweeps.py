@@ -64,6 +64,7 @@ def test_run_visualize_multi_sweeps_no_gui_prints_summary(tmp_path: Path) -> Non
     assert summary["sweep_ids"] == ["sweep_a", "sweep_b"]
     assert summary["active_sweep_id"] == "sweep_a"
     assert summary["nerf_enabled"] is False
+    assert summary["visible_sweep_ids"] == ["sweep_a"]
     assert summary["fusion_device"] == "auto"
     assert summary["fusion_reduction"] == "max"
     assert summary["startup_profile_log_path"] is not None

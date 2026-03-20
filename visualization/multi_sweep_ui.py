@@ -16,6 +16,7 @@ class MultiSweepViewerState:
 
     active_sweep_id: str
     enabled_sweep_ids: tuple[str, ...]
+    visible_sweep_ids: tuple[str, ...]
     comparison_policy: str
     show_aggregate_volume: bool
 
@@ -43,15 +44,20 @@ class MultiSweepSceneController:
         self.state = MultiSweepViewerState(
             active_sweep_id=scene.active_sweep_id,
             enabled_sweep_ids=tuple(sweep.sweep_id for sweep in (scene.enabled_sweeps or scene.sweeps)),
+            visible_sweep_ids=(scene.active_sweep_id,),
             comparison_policy=scene.comparison_policy,
             show_aggregate_volume=True,
         )
 
     def set_active_sweep(self, sweep_id: str) -> MultiSweepViewerState:
         self.scene.get_sweep(sweep_id)
+        visible_ids = self.state.visible_sweep_ids
+        if sweep_id not in visible_ids:
+            visible_ids = visible_ids + (sweep_id,)
         self.state = MultiSweepViewerState(
             active_sweep_id=sweep_id,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
+            visible_sweep_ids=visible_ids,
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
@@ -62,9 +68,29 @@ class MultiSweepSceneController:
         if not resolved_ids:
             raise ValueError("At least one sweep must remain enabled")
         active_id = self.state.active_sweep_id if self.state.active_sweep_id in resolved_ids else resolved_ids[0]
+        visible_ids = self.state.visible_sweep_ids
+        if active_id not in visible_ids:
+            visible_ids = visible_ids + (active_id,)
         self.state = MultiSweepViewerState(
             active_sweep_id=active_id,
             enabled_sweep_ids=resolved_ids,
+            visible_sweep_ids=tuple(dict.fromkeys(visible_ids)),
+            comparison_policy=self.state.comparison_policy,
+            show_aggregate_volume=self.state.show_aggregate_volume,
+        )
+        return self.state
+
+    def set_visible_sweeps(self, sweep_ids: tuple[str, ...]) -> MultiSweepViewerState:
+        resolved_ids = tuple(sweep.sweep_id for sweep in self.scene.sweeps if sweep.sweep_id in set(sweep_ids))
+        if not resolved_ids:
+            raise ValueError("At least one sweep must remain visible")
+        visible_ids = resolved_ids
+        if self.state.active_sweep_id not in visible_ids:
+            visible_ids = (self.state.active_sweep_id, *visible_ids)
+        self.state = MultiSweepViewerState(
+            active_sweep_id=self.state.active_sweep_id,
+            enabled_sweep_ids=self.state.enabled_sweep_ids,
+            visible_sweep_ids=tuple(dict.fromkeys(visible_ids)),
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
@@ -74,6 +100,7 @@ class MultiSweepSceneController:
         self.state = MultiSweepViewerState(
             active_sweep_id=self.state.active_sweep_id,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
+            visible_sweep_ids=self.state.visible_sweep_ids,
             comparison_policy=str(policy),
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
@@ -83,6 +110,7 @@ class MultiSweepSceneController:
         self.state = MultiSweepViewerState(
             active_sweep_id=self.state.active_sweep_id,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
+            visible_sweep_ids=self.state.visible_sweep_ids,
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=bool(show_aggregate_volume),
         )
@@ -100,11 +128,11 @@ class MultiSweepSceneController:
                 bounds_max_mm=aggregate.bounds_max_mm,
             )
 
-        overlays = tuple(self._get_per_sweep_overlay(sweep_id) for sweep_id in self.state.enabled_sweep_ids)
+        overlays = tuple(self._get_per_sweep_overlay(sweep_id) for sweep_id in self.state.visible_sweep_ids)
         return MultiSweepFusionResult(
             aggregate_volume=aggregate.aggregate_volume,
             sweep_overlays=overlays,
-            enabled_sweep_ids=self.state.enabled_sweep_ids,
+            enabled_sweep_ids=self.state.visible_sweep_ids,
             bounds_min_mm=aggregate.bounds_min_mm,
             bounds_max_mm=aggregate.bounds_max_mm,
         )
@@ -252,13 +280,15 @@ class SweepSelectionDockWidget:
     """Qt dock widget for selecting which sweeps participate in per-sweep mode."""
 
     def __init__(self, controller: MultiSweepSceneController, *, on_apply: Any | None = None):
+        from PyQt5.QtCore import Qt
         from PyQt5.QtWidgets import (
+            QAbstractItemView,
             QHBoxLayout,
             QLabel,
-            QListWidget,
-            QListWidgetItem,
             QPushButton,
             QScrollArea,
+            QTableWidget,
+            QTableWidgetItem,
             QVBoxLayout,
             QWidget,
         )
@@ -281,20 +311,29 @@ class SweepSelectionDockWidget:
 
         layout = QVBoxLayout(content_widget)
         layout.addWidget(QLabel("Sweep Selection"))
-        layout.addWidget(QLabel("Affects per-sweep mode and comparison after Apply."))
+        layout.addWidget(QLabel("Enable = comparison/search. Visible = per-sweep display."))
 
         self.selection_summary_label = QLabel("")
         layout.addWidget(self.selection_summary_label)
 
-        self.enabled_sweeps_list = QListWidget()
-        self.enabled_sweeps_list.setMinimumHeight(220)
-        for sweep in controller.scene.sweeps:
-            item = QListWidgetItem(sweep.display_name or sweep.sweep_id)
-            item.setData(1, sweep.sweep_id)
-            item.setFlags(item.flags() | 16)
-            item.setCheckState(2 if sweep.sweep_id in controller.state.enabled_sweep_ids else 0)
-            self.enabled_sweeps_list.addItem(item)
-        layout.addWidget(self.enabled_sweeps_list)
+        self.selection_table = QTableWidget(len(controller.scene.sweeps), 3)
+        self.selection_table.setHorizontalHeaderLabels(["Sweep", "Enabled", "Visible"])
+        self.selection_table.verticalHeader().setVisible(False)
+        self.selection_table.setMinimumHeight(240)
+        self.selection_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.selection_table.horizontalHeader().setStretchLastSection(False)
+        self.selection_table.horizontalHeader().setSectionResizeMode(0, self.selection_table.horizontalHeader().Stretch)
+        for row, sweep in enumerate(controller.scene.sweeps):
+            label_item = QTableWidgetItem(sweep.display_name or sweep.sweep_id)
+            label_item.setData(1, sweep.sweep_id)
+            self.selection_table.setItem(row, 0, label_item)
+            enabled_item = QTableWidgetItem()
+            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            self.selection_table.setItem(row, 1, enabled_item)
+            visible_item = QTableWidgetItem()
+            visible_item.setFlags(visible_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            self.selection_table.setItem(row, 2, visible_item)
+        layout.addWidget(self.selection_table)
 
         button_row = QHBoxLayout()
         layout.addLayout(button_row)
@@ -303,7 +342,7 @@ class SweepSelectionDockWidget:
         button_row.addWidget(self.apply_button)
         button_row.addWidget(self.reset_button)
 
-        self.enabled_sweeps_list.itemChanged.connect(self._handle_selection_changed)
+        self.selection_table.itemChanged.connect(self._handle_selection_changed)
         self.apply_button.clicked.connect(self._handle_apply)
         self.reset_button.clicked.connect(self.refresh)
 
@@ -311,27 +350,32 @@ class SweepSelectionDockWidget:
 
     def refresh(self) -> None:
         enabled_ids = set(self.controller.state.enabled_sweep_ids)
+        visible_ids = set(self.controller.state.visible_sweep_ids)
         self._updating = True
         try:
-            for index in range(self.enabled_sweeps_list.count()):
-                item = self.enabled_sweeps_list.item(index)
-                item.setCheckState(2 if item.data(1) in enabled_ids else 0)
+            for row in range(self.selection_table.rowCount()):
+                sweep_id = str(self.selection_table.item(row, 0).data(1))
+                self.selection_table.item(row, 1).setCheckState(2 if sweep_id in enabled_ids else 0)
+                self.selection_table.item(row, 2).setCheckState(2 if sweep_id in visible_ids else 0)
             self._update_summary_label(pending=False)
         finally:
             self._updating = False
 
-    def _collect_checked_ids(self) -> tuple[str, ...]:
-        enabled = []
-        for index in range(self.enabled_sweeps_list.count()):
-            item = self.enabled_sweeps_list.item(index)
+    def _collect_checked_ids(self, column: int) -> tuple[str, ...]:
+        checked = []
+        for row in range(self.selection_table.rowCount()):
+            item = self.selection_table.item(row, column)
             if item.checkState() == 2:
-                enabled.append(str(item.data(1)))
-        return tuple(enabled)
+                checked.append(str(self.selection_table.item(row, 0).data(1)))
+        return tuple(checked)
 
     def _update_summary_label(self, *, pending: bool) -> None:
-        checked = self._collect_checked_ids()
+        enabled = self._collect_checked_ids(1)
+        visible = self._collect_checked_ids(2)
         prefix = "Pending" if pending else "Active"
-        self.selection_summary_label.setText(f"{prefix} sweeps: {len(checked)} selected")
+        self.selection_summary_label.setText(
+            f"{prefix} enabled: {len(enabled)} | visible: {len(visible)}"
+        )
 
     def _handle_selection_changed(self, _item: Any) -> None:
         if self._updating:
@@ -339,8 +383,10 @@ class SweepSelectionDockWidget:
         self._update_summary_label(pending=True)
 
     def _handle_apply(self) -> None:
-        enabled = self._collect_checked_ids()
+        enabled = self._collect_checked_ids(1)
+        visible = self._collect_checked_ids(2)
         self.controller.set_enabled_sweeps(enabled)
+        self.controller.set_visible_sweeps(visible)
         self._update_summary_label(pending=False)
         if self.on_apply is not None:
             self.on_apply(self.controller.state)
