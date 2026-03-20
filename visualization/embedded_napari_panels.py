@@ -7,7 +7,14 @@ from typing import Any, Callable
 import numpy as np
 
 from visualization.comparison_panel import normalize_recorded_image_for_display
-from visualization.render_panel import normalize_image_for_display
+from visualization.render_panel import (
+    DEFAULT_RENDER_MAP_KEY,
+    extract_render_image,
+    format_render_metadata,
+    get_available_render_map_keys,
+    normalize_image_for_display,
+    resolve_render_map_key,
+)
 
 
 def _hide_napari_side_docks(viewer: Any) -> None:
@@ -103,7 +110,7 @@ class EmbeddedNapariRenderPanel(EmbeddedNapariImagePanel):
     """Embedded render panel with a manual Render button."""
 
     def __init__(self, ui_controller: Any) -> None:
-        from PyQt5.QtWidgets import QPushButton
+        from PyQt5.QtWidgets import QComboBox, QPushButton
 
         super().__init__(
             title="NeRF Render",
@@ -111,6 +118,13 @@ class EmbeddedNapariRenderPanel(EmbeddedNapariImagePanel):
             image_normalizer=normalize_image_for_display,
         )
         self.ui_controller = ui_controller
+        self._last_rendered_output: dict[str, Any] | None = None
+        self._last_scale_mm: tuple[float, float] | None = None
+        self._selected_map_key = DEFAULT_RENDER_MAP_KEY
+        self.map_selector = QComboBox()
+        self.map_selector.addItem(DEFAULT_RENDER_MAP_KEY, DEFAULT_RENDER_MAP_KEY)
+        self.map_selector.currentIndexChanged.connect(self._handle_map_selection_changed)
+        self.widget.layout().addWidget(self.map_selector)
         self.render_button = QPushButton("Render Now")
         self.render_button.clicked.connect(self._handle_render_now)
         self.widget.layout().addWidget(self.render_button)
@@ -121,6 +135,48 @@ class EmbeddedNapariRenderPanel(EmbeddedNapariImagePanel):
             self.ui_controller.render_now()
         except Exception as exc:
             self.set_status(f"Render failed: {exc}")
+
+    def set_render_output(
+        self,
+        rendered_output: dict[str, Any],
+        *,
+        scale_mm: tuple[float, float] | None = None,
+    ) -> None:
+        self._last_rendered_output = rendered_output
+        self._last_scale_mm = tuple(scale_mm) if scale_mm is not None else None
+        available_keys = get_available_render_map_keys(rendered_output)
+        self._populate_map_selector(available_keys)
+        self._refresh_selected_render_map()
+
+    def _handle_map_selection_changed(self) -> None:
+        selected = self.map_selector.currentData()
+        self._selected_map_key = str(selected or DEFAULT_RENDER_MAP_KEY)
+        self._refresh_selected_render_map()
+
+    def _populate_map_selector(self, available_keys: list[str]) -> None:
+        selected_key = self._selected_map_key
+        if selected_key not in available_keys:
+            selected_key = (
+                resolve_render_map_key(self._last_rendered_output or {}, selected_key)
+                if available_keys
+                else DEFAULT_RENDER_MAP_KEY
+            )
+        self.map_selector.blockSignals(True)
+        self.map_selector.clear()
+        for key in available_keys or [DEFAULT_RENDER_MAP_KEY]:
+            self.map_selector.addItem(key, key)
+        index = self.map_selector.findData(selected_key)
+        if index >= 0:
+            self.map_selector.setCurrentIndex(index)
+        self.map_selector.blockSignals(False)
+        self._selected_map_key = str(selected_key)
+
+    def _refresh_selected_render_map(self) -> None:
+        if not self._last_rendered_output:
+            return
+        image = extract_render_image(self._last_rendered_output, self._selected_map_key)
+        self.set_metadata(format_render_metadata(self._last_rendered_output, self._selected_map_key))
+        self.set_image(image, scale_mm=self._last_scale_mm)
 
 
 def create_embedded_comparison_panel() -> EmbeddedNapariImagePanel:

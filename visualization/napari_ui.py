@@ -327,8 +327,11 @@ class VisualizationUIController:
             self.render_panel.set_metadata("No render available")
             return
         self.render_panel.set_status("Rendered")
-        self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
-        self.render_panel.set_image(extract_render_image(self.state.rendered_output))
+        if hasattr(self.render_panel, "set_render_output"):
+            self.render_panel.set_render_output(self.state.rendered_output)
+        else:
+            self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
+            self.render_panel.set_image(extract_render_image(self.state.rendered_output))
 
     def _refresh_probe_controls(self) -> None:
         if self.probe_controls is None or self.state is None:

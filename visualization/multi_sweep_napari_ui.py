@@ -612,14 +612,21 @@ class MultiSweepVisualizationUIController:
             self.render_panel.set_status("Ready")
             self.render_panel.set_metadata("No render available")
             return
-        render_image = extract_render_image(self.state.rendered_output)
         self.render_panel.set_status("Rendered")
-        self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
-        self._set_panel_image(
-            self.render_panel,
-            render_image,
-            scale_mm=self._image_pixel_scale_mm(render_image.shape[-2:]),
-        )
+        if hasattr(self.render_panel, "set_render_output"):
+            render_image = extract_render_image(self.state.rendered_output)
+            self.render_panel.set_render_output(
+                self.state.rendered_output,
+                scale_mm=self._image_pixel_scale_mm(render_image.shape[-2:]),
+            )
+        else:
+            render_image = extract_render_image(self.state.rendered_output)
+            self.render_panel.set_metadata(format_render_metadata(self.state.rendered_output))
+            self._set_panel_image(
+                self.render_panel,
+                render_image,
+                scale_mm=self._image_pixel_scale_mm(render_image.shape[-2:]),
+            )
 
     def _refresh_probe_controls(self) -> None:
         if self.probe_controls is None or self.state is None:

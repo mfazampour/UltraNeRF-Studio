@@ -1,6 +1,12 @@
 import numpy as np
 
-from visualization.render_panel import extract_render_image, format_render_metadata, normalize_image_for_display
+from visualization.render_panel import (
+    extract_render_image,
+    format_render_metadata,
+    get_available_render_map_keys,
+    normalize_image_for_display,
+    resolve_render_map_key,
+)
 
 
 def test_extract_render_image_prefers_intensity_map_and_squeezes_batch_dims():
@@ -15,6 +21,19 @@ def test_extract_render_image_moves_channel_first_rgb_to_channel_last():
     assert image.shape == (4, 5, 3)
 
 
+def test_extract_render_image_can_select_intermediate_map():
+    image = extract_render_image(
+        {
+            "intensity_map": np.ones((1, 1, 4, 5), dtype=np.float32),
+            "attenuation_coeff": np.full((1, 1, 4, 5), 2.0, dtype=np.float32),
+        },
+        "attenuation_coeff",
+    )
+
+    assert image.shape == (4, 5)
+    assert np.all(image == 2.0)
+
+
 def test_normalize_image_for_display_returns_uint8():
     display = normalize_image_for_display(np.array([[0.0, 1.0], [2.0, 3.0]], dtype=np.float32))
 
@@ -27,7 +46,7 @@ def test_normalize_image_for_display_returns_uint8():
 def test_format_render_metadata_reports_image_shape():
     metadata = format_render_metadata({"intensity_map": np.ones((1, 1, 4, 5), dtype=np.float32)})
 
-    assert metadata == "Image shape: (4, 5) | min=1 max=1"
+    assert metadata == "Map: intensity_map | Image shape: (4, 5) | min=1 max=1"
 
 
 def test_normalize_image_for_display_handles_sparse_nonnegative_signal():
@@ -40,3 +59,24 @@ def test_normalize_image_for_display_handles_sparse_nonnegative_signal():
     assert display.dtype == np.uint8
     assert display.max() == 255
     assert display[6, 2] == 255
+
+
+def test_get_available_render_map_keys_returns_supported_intermediate_maps():
+    keys = get_available_render_map_keys(
+        {
+            "intensity_map": np.ones((1, 1, 4, 5), dtype=np.float32),
+            "reflection_coeff": np.ones((1, 1, 4, 5), dtype=np.float32),
+            "unsupported": np.ones((1,), dtype=np.float32),
+        }
+    )
+
+    assert keys == ["intensity_map", "reflection_coeff"]
+
+
+def test_resolve_render_map_key_defaults_to_intensity_map():
+    rendered_output = {
+        "intensity_map": np.ones((1, 1, 4, 5), dtype=np.float32),
+        "reflection_coeff": np.ones((1, 1, 4, 5), dtype=np.float32),
+    }
+
+    assert resolve_render_map_key(rendered_output, "missing") == "intensity_map"

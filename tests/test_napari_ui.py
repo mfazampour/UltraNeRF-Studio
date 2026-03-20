@@ -174,7 +174,7 @@ def test_render_panel_receives_status_and_image_updates():
     controller.render_now()
 
     assert render_panel.status == "Rendered"
-    assert render_panel.metadata == "Image shape: (4, 5) | min=1 max=1"
+    assert render_panel.metadata == "Map: intensity_map | Image shape: (4, 5) | min=1 max=1"
     assert render_panel.image.shape == (4, 5)
 
 
