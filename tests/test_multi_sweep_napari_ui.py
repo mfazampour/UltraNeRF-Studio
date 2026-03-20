@@ -6,6 +6,7 @@ from visualization.multi_sweep_napari_ui import (
     MultiSweepVisualizationUIController,
     _color_to_hex,
     _compute_aggregate_contrast_limits,
+    _reorder_named_layers,
 )
 from visualization.multi_sweep_ui import MultiSweepSceneController
 from visualization.multi_sweep_volume import fuse_multi_sweep_scene
@@ -44,6 +45,22 @@ class FakeViewer:
         layer = FakeLayer(data, **kwargs)
         self.layers[kwargs["name"]] = layer
         return layer
+
+
+class OrderedLayerList(list):
+    def move(self, src: int, dest: int):
+        layer = self.pop(src)
+        self.insert(dest, layer)
+
+
+class OrderedFakeLayer:
+    def __init__(self, name: str):
+        self.name = name
+
+
+class OrderedFakeViewer:
+    def __init__(self, names: list[str]):
+        self.layers = OrderedLayerList(OrderedFakeLayer(name) for name in names)
 
 
 class FakeNerfSession:
@@ -143,6 +160,40 @@ def test_compute_aggregate_contrast_limits_suppresses_low_signal_background() ->
 
     assert lower > 0.0
     assert upper > lower
+
+
+def test_reorder_named_layers_moves_volumes_after_trajectories() -> None:
+    viewer = OrderedFakeViewer(
+        [
+            "sweep_volume__aggregate",
+            "sweep_volume__a",
+            "trajectory_path__a",
+            "probe_scan_plane",
+            "probe_axes",
+            "probe_beam_line",
+        ]
+    )
+
+    _reorder_named_layers(
+        viewer,
+        [
+            "sweep_volume__aggregate",
+            "trajectory_path__a",
+            "sweep_volume__a",
+            "probe_scan_plane",
+            "probe_axes",
+            "probe_beam_line",
+        ],
+    )
+
+    assert [layer.name for layer in viewer.layers] == [
+        "sweep_volume__aggregate",
+        "trajectory_path__a",
+        "sweep_volume__a",
+        "probe_scan_plane",
+        "probe_axes",
+        "probe_beam_line",
+    ]
 
 
 def test_initialize_adds_multi_sweep_layers_and_probe() -> None:

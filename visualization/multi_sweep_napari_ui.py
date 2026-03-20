@@ -92,6 +92,31 @@ def _find_existing_layer_by_name(viewer: Any, name: str) -> Any | None:
     return None
 
 
+def _reorder_named_layers(viewer: Any, ordered_names: list[str]) -> None:
+    """Reorder named layers when the viewer exposes a mutable layer list.
+
+    Napari's internal stack order is bottom-to-top, while the UI shows the list
+    in reverse. Making this explicit avoids relying on creation order.
+    """
+    layers = getattr(viewer, "layers", None)
+    if layers is None or isinstance(layers, dict) or not hasattr(layers, "move"):
+        return
+
+    for target_index, layer_name in enumerate(ordered_names):
+        layer = _find_existing_layer_by_name(viewer, layer_name)
+        if layer is None:
+            continue
+        try:
+            current_index = layers.index(layer)
+        except Exception:
+            continue
+        if current_index != target_index:
+            try:
+                layers.move(current_index, target_index)
+            except Exception:
+                return
+
+
 def _compute_aggregate_contrast_limits(volume_data: np.ndarray) -> tuple[float, float]:
     """Return aggregate-specific contrast limits with strong low-signal suppression."""
     data = np.asarray(volume_data, dtype=np.float32)
@@ -415,6 +440,24 @@ class MultiSweepVisualizationUIController:
                 layer = self._layers.get(f"{prefix}{sweep.sweep_id}")
                 if layer is not None:
                     _set_layer_visibility(layer, False)
+
+        ordered_names = ["sweep_volume__aggregate"]
+        ordered_names.extend(
+            f"trajectory_path__{sweep.sweep_id}"
+            for sweep in self.app_state.scene.sweeps
+            if f"trajectory_path__{sweep.sweep_id}" in self._layers
+        )
+        ordered_names.extend(
+            f"sweep_volume__{sweep.sweep_id}"
+            for sweep in self.app_state.scene.sweeps
+            if f"sweep_volume__{sweep.sweep_id}" in self._layers
+        )
+        ordered_names.extend(
+            layer_name
+            for layer_name in ("probe_scan_plane", "probe_axes", "probe_beam_line")
+            if layer_name in self._layers
+        )
+        _reorder_named_layers(self.viewer, ordered_names)
 
     def _set_probe_layers(self, probe_pose_mm: np.ndarray) -> None:
         representation = build_probe_representation(probe_pose_mm, self.app_state.probe_geometry)
