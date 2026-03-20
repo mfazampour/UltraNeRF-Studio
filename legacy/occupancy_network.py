@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -99,7 +101,7 @@ def train(model, dataloader, optimizer, criterion, num_epochs=100):
         print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss:.16f}")
     torch.save(model.state_dict(), 'occupancy_network_mlp.pth')
 # 4. Load data, initialize model, loss function, and optimizer
-occupancy_file = 'occupancy_13.npy'  # Replace with your .npy file path
+occupancy_file = str(Path(__file__).resolve().with_name("occupancy_13.npy"))
 dataset = OccupancyDataset(occupancy_file)
 dataloader = DataLoader(dataset, batch_size=100*100*100, shuffle=True)
 # def visualize_occupancy_with_marching_cubes(occupancy_output, grid_shape=None):

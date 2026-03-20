@@ -115,7 +115,7 @@ docs instead of this README.
 - `rendering_utils/`
   Helper functions for reflection modeling and wavelet-based denoising / backscatter extraction.
 
-- `occupancy_network.py`
+- `legacy/occupancy_network.py`
   Standalone occupancy-grid experiment. This is not tightly integrated with the main training path.
 
 - `scripts/`

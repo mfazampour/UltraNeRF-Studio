@@ -35,7 +35,7 @@ Treat these as more experimental or secondary:
 - `reconstruction_network.py`
 - `run_reconstruction.py`
 - `run_reconstruction_from_pts.py`
-- `occupancy_network.py`
+- `legacy/occupancy_network.py`
 - ad hoc scripts in `scripts/`
 
 ## Before Making Changes
