@@ -1,5 +1,7 @@
 # UltraNeRF
 
+![Multi-sweep visualizer workspace](docs/gui.png)
+
 PyTorch research code for learning an ultrasound image formation model from tracked 2D ultrasound frames.
 
 This repository starts from UltraNeRF and NeRF-style MLPs, but the core renderer is customized for linear ultrasound probes rather than RGB image synthesis.
