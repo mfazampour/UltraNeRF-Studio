@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
+import time
 from typing import Any
 
 import numpy as np
@@ -135,6 +138,25 @@ def _compute_aggregate_contrast_limits(volume_data: np.ndarray) -> tuple[float, 
     return (lower, upper)
 
 
+def _resolve_scene_profile_log_path(manifest_path: Path | None) -> Path:
+    stem = manifest_path.stem if manifest_path is not None else "multi_sweep"
+    return Path("logs") / "visualization" / "profiling" / f"{stem}_scene_events.jsonl"
+
+
+def _append_scene_profile_event(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.chmod(0o777)
+    except OSError:
+        pass
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
+    try:
+        path.chmod(0o666)
+    except OSError:
+        pass
+
+
 @dataclass
 class MultiSweepSceneState:
     probe_pose_mm: np.ndarray
@@ -162,6 +184,7 @@ class MultiSweepVisualizationUIController:
         self.comparison_panel: Any | None = None
         self.multi_sweep_controls: Any | None = None
         self.sweep_selection_controls: Any | None = None
+        self._scene_profile_log_path = _resolve_scene_profile_log_path(app_state.manifest_path)
 
     def _image_pixel_scale_mm(self, image_shape: tuple[int, int], *, sweep_id: str | None = None) -> tuple[float, float]:
         sweep = self.app_state.scene.get_sweep(sweep_id or self.app_state.scene_controller.state.active_sweep_id)
@@ -200,7 +223,8 @@ class MultiSweepVisualizationUIController:
         if probe_pose_mm is None:
             probe_pose_mm = self.app_state.scene.active_sweep.poses_mm[0]
         pose = ensure_pose_matrix(probe_pose_mm).astype(np.float32)
-        self._refresh_multi_sweep_scene_layers()
+        timings: dict[str, float] = {}
+        self._refresh_multi_sweep_scene_layers(profile_timings=timings)
         self._set_probe_layers(pose)
         comparison_payload = self._build_comparison_payload(pose, rendered_output={})
         rendered_output = None
@@ -218,18 +242,37 @@ class MultiSweepVisualizationUIController:
         self._refresh_sweep_selection_controls()
         self._refresh_comparison_panel()
         self._refresh_render_panel()
+        self._profile_scene_event(
+            "initialize",
+            timings_ms=timings,
+            extra={"initial_active_sweep_id": self.app_state.scene_controller.state.active_sweep_id},
+        )
         return self.state
 
     def handle_multi_sweep_state_change(self, _viewer_state: MultiSweepViewerState) -> None:
-        self._refresh_multi_sweep_scene_layers()
+        timings: dict[str, float] = {}
+        start = time.perf_counter()
+        self._refresh_multi_sweep_scene_layers(profile_timings=timings)
+        after_layers = time.perf_counter()
         if self.state is not None:
             self.state.comparison_payload = self._build_comparison_payload(
                 self.state.probe_pose_mm,
                 rendered_output=self.state.rendered_output or {},
             )
+        after_comparison_payload = time.perf_counter()
         self._refresh_probe_controls()
+        after_probe_controls = time.perf_counter()
         self._refresh_sweep_selection_controls()
+        after_selection_controls = time.perf_counter()
         self._refresh_comparison_panel()
+        after_comparison_panel = time.perf_counter()
+        timings["refresh_layers_total_ms"] = float((after_layers - start) * 1000.0)
+        timings["rebuild_comparison_payload_ms"] = float((after_comparison_payload - after_layers) * 1000.0)
+        timings["refresh_probe_controls_ms"] = float((after_probe_controls - after_comparison_payload) * 1000.0)
+        timings["refresh_selection_controls_ms"] = float((after_selection_controls - after_probe_controls) * 1000.0)
+        timings["refresh_comparison_panel_ms"] = float((after_comparison_panel - after_selection_controls) * 1000.0)
+        timings["total_ms"] = float((after_comparison_panel - start) * 1000.0)
+        self._profile_scene_event("state_change", timings_ms=timings)
 
     def set_active_sweep(self, sweep_id: str) -> MultiSweepSceneState:
         self.app_state.scene_controller.set_active_sweep(sweep_id)
@@ -329,12 +372,40 @@ class MultiSweepVisualizationUIController:
             allowed_sweep_ids=state.enabled_sweep_ids,
         )
 
-    def _refresh_multi_sweep_scene_layers(self) -> None:
+    def _profile_scene_event(
+        self,
+        event_type: str,
+        *,
+        timings_ms: dict[str, float],
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        state = self.app_state.scene_controller.state
+        payload: dict[str, Any] = {
+            "event_type": str(event_type),
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "manifest_path": str(self.app_state.manifest_path.resolve()) if self.app_state.manifest_path is not None else None,
+            "active_sweep_id": state.active_sweep_id,
+            "enabled_sweep_ids": list(state.enabled_sweep_ids),
+            "comparison_policy": state.comparison_policy,
+            "show_aggregate_volume": bool(state.show_aggregate_volume),
+            "timings_ms": {str(k): float(v) for k, v in timings_ms.items()},
+        }
+        if extra:
+            payload.update(extra)
+        _append_scene_profile_event(self._scene_profile_log_path, payload)
+
+    def _refresh_multi_sweep_scene_layers(self, *, profile_timings: dict[str, float] | None = None) -> None:
+        profile_timings = {} if profile_timings is None else profile_timings
+        tick = time.perf_counter()
         fusion_result = self.app_state.scene_controller.build_fusion_result()
+        after_fusion = time.perf_counter()
         self.app_state.fusion_result = fusion_result
         state = self.app_state.scene_controller.state
         active_id = state.active_sweep_id
         trajectory_visible_ids = {active_id} if state.show_aggregate_volume else set(fusion_result.enabled_sweep_ids)
+        profile_timings["build_fusion_result_ms"] = float((after_fusion - tick) * 1000.0)
+
+        aggregate_tick = time.perf_counter()
         aggregate_config = build_volume_layer_config_from_preset(
             fusion_result.aggregate_volume,
             preset_name=self.app_state.preset_name,
@@ -369,8 +440,11 @@ class MultiSweepVisualizationUIController:
         if hasattr(aggregate_layer, "contrast_limits"):
             aggregate_layer.contrast_limits = _compute_aggregate_contrast_limits(aggregate_config.data)
         _set_layer_visibility(aggregate_layer, state.show_aggregate_volume)
+        after_aggregate = time.perf_counter()
+        profile_timings["refresh_aggregate_layer_ms"] = float((after_aggregate - aggregate_tick) * 1000.0)
 
         visible_ids = set(fusion_result.enabled_sweep_ids)
+        overlay_tick = time.perf_counter()
         for overlay in fusion_result.sweep_overlays:
             color = _color_to_hex(overlay.color_rgb, default="#cccc33")
             volume_name = f"sweep_volume__{overlay.sweep_id}"
@@ -440,7 +514,10 @@ class MultiSweepVisualizationUIController:
                 layer = self._layers.get(f"{prefix}{sweep.sweep_id}")
                 if layer is not None:
                     _set_layer_visibility(layer, False)
+        after_overlays = time.perf_counter()
+        profile_timings["refresh_overlay_layers_ms"] = float((after_overlays - overlay_tick) * 1000.0)
 
+        reorder_tick = time.perf_counter()
         ordered_names = ["sweep_volume__aggregate"]
         ordered_names.extend(
             f"trajectory_path__{sweep.sweep_id}"
@@ -458,6 +535,13 @@ class MultiSweepVisualizationUIController:
             if layer_name in self._layers
         )
         _reorder_named_layers(self.viewer, ordered_names)
+        after_reorder = time.perf_counter()
+        profile_timings["reorder_layers_ms"] = float((after_reorder - reorder_tick) * 1000.0)
+        profile_timings["num_fusion_overlays"] = float(len(fusion_result.sweep_overlays))
+        profile_timings["num_visible_sweeps"] = float(len(visible_ids))
+        profile_timings["num_volume_overlays"] = float(
+            sum(1 for overlay in fusion_result.sweep_overlays if overlay.fused_volume is not None)
+        )
 
     def _set_probe_layers(self, probe_pose_mm: np.ndarray) -> None:
         representation = build_probe_representation(probe_pose_mm, self.app_state.probe_geometry)
