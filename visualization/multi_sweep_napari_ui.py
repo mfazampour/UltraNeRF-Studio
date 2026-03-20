@@ -518,22 +518,20 @@ class MultiSweepVisualizationUIController:
         profile_timings["refresh_overlay_layers_ms"] = float((after_overlays - overlay_tick) * 1000.0)
 
         reorder_tick = time.perf_counter()
-        ordered_names = ["sweep_volume__aggregate"]
-        ordered_names.extend(
-            f"trajectory_path__{sweep.sweep_id}"
-            for sweep in self.app_state.scene.sweeps
-            if f"trajectory_path__{sweep.sweep_id}" in self._layers
-        )
-        ordered_names.extend(
-            f"sweep_volume__{sweep.sweep_id}"
-            for sweep in self.app_state.scene.sweeps
-            if f"sweep_volume__{sweep.sweep_id}" in self._layers
-        )
-        ordered_names.extend(
+        ordered_names = [
             layer_name
-            for layer_name in ("probe_scan_plane", "probe_axes", "probe_beam_line")
+            for layer_name in (
+                *(
+                    f"trajectory_path__{sweep.sweep_id}"
+                    for sweep in self.app_state.scene.sweeps
+                    if f"trajectory_path__{sweep.sweep_id}" in self._layers
+                ),
+                "probe_scan_plane",
+                "probe_axes",
+                "probe_beam_line",
+            )
             if layer_name in self._layers
-        )
+        ]
         _reorder_named_layers(self.viewer, ordered_names)
         after_reorder = time.perf_counter()
         profile_timings["reorder_layers_ms"] = float((after_reorder - reorder_tick) * 1000.0)
