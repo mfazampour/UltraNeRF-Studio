@@ -509,10 +509,12 @@ class MultiSweepVisualizationUIController:
             _set_layer_visibility(path_layer, trajectory_is_visible)
 
         for sweep in self.app_state.scene.sweeps:
-            if sweep.sweep_id in visible_ids:
-                continue
-            for prefix in ("sweep_volume__", "trajectory_path__"):
-                layer = self._layers.get(f"{prefix}{sweep.sweep_id}")
+            if sweep.sweep_id not in visible_ids:
+                layer = self._layers.get(f"sweep_volume__{sweep.sweep_id}")
+                if layer is not None:
+                    _set_layer_visibility(layer, False)
+            if sweep.sweep_id not in trajectory_visible_ids:
+                layer = self._layers.get(f"trajectory_path__{sweep.sweep_id}")
                 if layer is not None:
                     _set_layer_visibility(layer, False)
         after_overlays = time.perf_counter()

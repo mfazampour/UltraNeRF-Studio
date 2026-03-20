@@ -33,7 +33,7 @@ def test_controller_tracks_active_enabled_and_policy_state() -> None:
 
     state = controller.set_active_sweep("b")
     assert state.active_sweep_id == "b"
-    assert state.visible_sweep_ids == ("a", "b")
+    assert state.visible_sweep_ids == ("a",)
 
     state = controller.set_comparison_policy("active_only")
     assert state.comparison_policy == "active_only"
@@ -49,7 +49,7 @@ def test_controller_tracks_visible_sweeps_separately_from_enabled_sweeps() -> No
     assert state.enabled_sweep_ids == ("a", "b")
 
     state = controller.set_visible_sweeps(("b",))
-    assert state.visible_sweep_ids == ("a", "b")
+    assert state.visible_sweep_ids == ("b",)
 
 
 def test_controller_requires_at_least_one_enabled_sweep() -> None:
@@ -75,8 +75,8 @@ def test_controller_builds_fusion_result_for_visible_subset() -> None:
 
     result = controller.build_fusion_result()
 
-    assert result.enabled_sweep_ids == ("a", "b")
-    assert tuple(overlay.sweep_id for overlay in result.sweep_overlays) == ("a", "b")
+    assert result.enabled_sweep_ids == ("b",)
+    assert tuple(overlay.sweep_id for overlay in result.sweep_overlays) == ("b",)
 
 
 def test_controller_skips_per_sweep_volumes_while_aggregate_mode_is_enabled() -> None:

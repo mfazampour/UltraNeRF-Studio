@@ -51,13 +51,10 @@ class MultiSweepSceneController:
 
     def set_active_sweep(self, sweep_id: str) -> MultiSweepViewerState:
         self.scene.get_sweep(sweep_id)
-        visible_ids = self.state.visible_sweep_ids
-        if sweep_id not in visible_ids:
-            visible_ids = visible_ids + (sweep_id,)
         self.state = MultiSweepViewerState(
             active_sweep_id=sweep_id,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
-            visible_sweep_ids=visible_ids,
+            visible_sweep_ids=self.state.visible_sweep_ids,
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
@@ -68,13 +65,10 @@ class MultiSweepSceneController:
         if not resolved_ids:
             raise ValueError("At least one sweep must remain enabled")
         active_id = self.state.active_sweep_id if self.state.active_sweep_id in resolved_ids else resolved_ids[0]
-        visible_ids = self.state.visible_sweep_ids
-        if active_id not in visible_ids:
-            visible_ids = visible_ids + (active_id,)
         self.state = MultiSweepViewerState(
             active_sweep_id=active_id,
             enabled_sweep_ids=resolved_ids,
-            visible_sweep_ids=tuple(dict.fromkeys(visible_ids)),
+            visible_sweep_ids=self.state.visible_sweep_ids,
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
@@ -84,13 +78,10 @@ class MultiSweepSceneController:
         resolved_ids = tuple(sweep.sweep_id for sweep in self.scene.sweeps if sweep.sweep_id in set(sweep_ids))
         if not resolved_ids:
             raise ValueError("At least one sweep must remain visible")
-        visible_ids = resolved_ids
-        if self.state.active_sweep_id not in visible_ids:
-            visible_ids = (self.state.active_sweep_id, *visible_ids)
         self.state = MultiSweepViewerState(
             active_sweep_id=self.state.active_sweep_id,
             enabled_sweep_ids=self.state.enabled_sweep_ids,
-            visible_sweep_ids=tuple(dict.fromkeys(visible_ids)),
+            visible_sweep_ids=resolved_ids,
             comparison_policy=self.state.comparison_policy,
             show_aggregate_volume=self.state.show_aggregate_volume,
         )
