@@ -31,15 +31,16 @@ def normalize_recorded_image_for_display(image: np.ndarray) -> np.ndarray:
     valid = array[finite]
     min_value = float(np.min(valid))
     max_value = float(np.max(valid))
+    sanitized = np.where(finite, array, min_value)
 
     if min_value >= 0.0 and max_value <= 1.0:
-        scaled = np.clip(array, 0.0, 1.0) * 255.0
+        scaled = np.clip(sanitized, 0.0, 1.0) * 255.0
         return np.round(scaled).astype(np.uint8)
 
     if max_value <= min_value:
         return np.zeros_like(array, dtype=np.uint8)
 
-    scaled = (array - min_value) / (max_value - min_value)
+    scaled = (sanitized - min_value) / (max_value - min_value)
     return np.clip(np.round(scaled * 255.0), 0, 255).astype(np.uint8)
 
 

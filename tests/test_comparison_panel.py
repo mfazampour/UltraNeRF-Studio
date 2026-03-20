@@ -1,6 +1,10 @@
 import numpy as np
 
-from visualization.comparison_panel import extract_matched_image, format_comparison_metadata
+from visualization.comparison_panel import (
+    extract_matched_image,
+    format_comparison_metadata,
+    normalize_recorded_image_for_display,
+)
 
 
 def test_extract_matched_image_returns_2d_array():
@@ -32,3 +36,13 @@ def test_format_comparison_metadata_includes_matched_sweep_name_when_present():
     )
 
     assert metadata == "Sweep B | Frame 7 | dT=2.00 mm | dR=4.00 deg"
+
+
+def test_normalize_recorded_image_for_display_ignores_nonfinite_pixels():
+    image = np.array([[0.0, np.nan], [np.inf, 1.0]], dtype=np.float32)
+
+    display = normalize_recorded_image_for_display(image)
+
+    assert display.dtype == np.uint8
+    assert display.shape == image.shape
+    assert np.array_equal(display, np.array([[0, 0], [0, 255]], dtype=np.uint8))
