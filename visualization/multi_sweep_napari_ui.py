@@ -19,6 +19,7 @@ from visualization.probe_representation import build_probe_representation
 from visualization.render_controller import RenderController
 from visualization.render_panel import extract_render_image, format_render_metadata
 from visualization.transforms import ensure_pose_matrix
+from visualization.ui_busy import ui_busy_feedback
 from visualization.volume_viewer import build_volume_layer_config_from_preset
 
 
@@ -251,21 +252,28 @@ class MultiSweepVisualizationUIController:
 
     def handle_multi_sweep_state_change(self, _viewer_state: MultiSweepViewerState) -> None:
         timings: dict[str, float] = {}
-        start = time.perf_counter()
-        self._refresh_multi_sweep_scene_layers(profile_timings=timings)
-        after_layers = time.perf_counter()
-        if self.state is not None:
-            self.state.comparison_payload = self._build_comparison_payload(
-                self.state.probe_pose_mm,
-                rendered_output=self.state.rendered_output or {},
-            )
-        after_comparison_payload = time.perf_counter()
-        self._refresh_probe_controls()
-        after_probe_controls = time.perf_counter()
-        self._refresh_sweep_selection_controls()
-        after_selection_controls = time.perf_counter()
-        self._refresh_comparison_panel()
-        after_comparison_panel = time.perf_counter()
+        state = self.app_state.scene_controller.state
+        message = (
+            "Switching to per-sweep mode..."
+            if not state.show_aggregate_volume
+            else "Updating aggregate view..."
+        )
+        with ui_busy_feedback(self.viewer, message):
+            start = time.perf_counter()
+            self._refresh_multi_sweep_scene_layers(profile_timings=timings)
+            after_layers = time.perf_counter()
+            if self.state is not None:
+                self.state.comparison_payload = self._build_comparison_payload(
+                    self.state.probe_pose_mm,
+                    rendered_output=self.state.rendered_output or {},
+                )
+            after_comparison_payload = time.perf_counter()
+            self._refresh_probe_controls()
+            after_probe_controls = time.perf_counter()
+            self._refresh_sweep_selection_controls()
+            after_selection_controls = time.perf_counter()
+            self._refresh_comparison_panel()
+            after_comparison_panel = time.perf_counter()
         timings["refresh_layers_total_ms"] = float((after_layers - start) * 1000.0)
         timings["rebuild_comparison_payload_ms"] = float((after_comparison_payload - after_layers) * 1000.0)
         timings["refresh_probe_controls_ms"] = float((after_probe_controls - after_comparison_payload) * 1000.0)
