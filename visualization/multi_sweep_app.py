@@ -165,10 +165,13 @@ def _hide_main_viewer_side_docks(viewer: Any) -> None:
 def _install_multi_view_workspace(
     viewer: Any,
     *,
+    probe_controls_widget: Any,
+    multi_sweep_controls_widget: Any,
+    sweep_selection_widget: Any,
     comparison_panel: Any,
     render_panel: Any | None,
 ) -> None:
-    """Embed the main 3D viewer and two 2D viewers into one splitter layout."""
+    """Embed the main 3D viewer, review panels, and control columns into one workspace."""
     from PyQt5.QtCore import Qt
     from PyQt5.QtWidgets import QSplitter, QWidget, QVBoxLayout
 
@@ -180,22 +183,50 @@ def _install_multi_view_workspace(
     if main_qt_viewer is None:
         raise RuntimeError("Main napari viewer does not expose an embeddable Qt viewer")
 
-    right_stack = QSplitter()
-    right_stack.setOrientation(Qt.Vertical)
-    right_stack.addWidget(comparison_panel.widget)
+    def _build_column(*widgets: Any, minimum_width: int) -> QWidget:
+        column = QWidget()
+        column.setMinimumWidth(minimum_width)
+        layout = QVBoxLayout(column)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        for widget in widgets:
+            layout.addWidget(widget)
+        return column
+
+    left_controls_column = _build_column(probe_controls_widget, minimum_width=300)
+
+    review_stack = QSplitter()
+    review_stack.setOrientation(Qt.Vertical)
+    review_stack.addWidget(comparison_panel.widget)
     if render_panel is not None:
-        right_stack.addWidget(render_panel.widget)
-        right_stack.setSizes([420, 420])
+        review_stack.addWidget(render_panel.widget)
+        review_stack.setSizes([420, 420])
     else:
-        right_stack.setSizes([840])
-    right_stack.setChildrenCollapsible(False)
+        review_stack.setSizes([840])
+    review_stack.setChildrenCollapsible(False)
+
+    review_column = _build_column(review_stack, minimum_width=500)
+
+    right_controls_stack = QSplitter()
+    right_controls_stack.setOrientation(Qt.Vertical)
+    right_controls_stack.addWidget(multi_sweep_controls_widget)
+    right_controls_stack.addWidget(sweep_selection_widget)
+    right_controls_stack.setSizes([280, 420])
+    right_controls_stack.setChildrenCollapsible(False)
+    right_controls_column = _build_column(right_controls_stack, minimum_width=320)
 
     root_splitter = QSplitter()
     root_splitter.setOrientation(Qt.Horizontal)
+    root_splitter.addWidget(left_controls_column)
     root_splitter.addWidget(main_qt_viewer)
-    root_splitter.addWidget(right_stack)
-    root_splitter.setSizes([1200, 560])
+    root_splitter.addWidget(review_column)
+    root_splitter.addWidget(right_controls_column)
+    root_splitter.setSizes([320, 1180, 520, 340])
     root_splitter.setChildrenCollapsible(False)
+    root_splitter.setStretchFactor(0, 0)
+    root_splitter.setStretchFactor(1, 1)
+    root_splitter.setStretchFactor(2, 0)
+    root_splitter.setStretchFactor(3, 0)
 
     central_widget = QWidget()
     layout = QVBoxLayout(central_widget)
@@ -345,21 +376,18 @@ def launch_multi_sweep_visualization_app(
             state.scene_controller,
             on_state_changed=ui_controller.handle_multi_sweep_state_change,
         )
-        viewer.window.add_dock_widget(multi_sweep_controls.widget, area="right", name="Multi-Sweep Controls")
         ui_controller.attach_multi_sweep_controls(multi_sweep_controls)
 
         sweep_selection_controls = create_sweep_selection_controls(
             state.scene_controller,
             on_apply=ui_controller.handle_multi_sweep_state_change,
         )
-        viewer.window.add_dock_widget(sweep_selection_controls.widget, area="right", name="Sweep Selection")
         ui_controller.attach_sweep_selection_controls(sweep_selection_controls)
 
         probe_controls = create_probe_controls(
             ui_controller,
             num_frames=state.scene.active_sweep.frame_count,
         )
-        viewer.window.add_dock_widget(probe_controls.widget, area="left", name="Probe Controls")
         ui_controller.attach_probe_controls(probe_controls)
 
         if use_multi_view_workspace:
@@ -378,11 +406,17 @@ def launch_multi_sweep_visualization_app(
 
             _install_multi_view_workspace(
                 viewer,
+                probe_controls_widget=probe_controls.widget,
+                multi_sweep_controls_widget=multi_sweep_controls.widget,
+                sweep_selection_widget=sweep_selection_controls.widget,
                 comparison_panel=comparison_panel,
                 render_panel=render_panel,
             )
             profiler.mark("build_multi_view_workspace")
         else:
+            viewer.window.add_dock_widget(multi_sweep_controls.widget, area="right", name="Multi-Sweep Controls")
+            viewer.window.add_dock_widget(sweep_selection_controls.widget, area="right", name="Sweep Selection")
+            viewer.window.add_dock_widget(probe_controls.widget, area="left", name="Probe Controls")
             comparison_panel = create_comparison_panel()
             ui_controller.attach_comparison_panel(comparison_panel)
 
