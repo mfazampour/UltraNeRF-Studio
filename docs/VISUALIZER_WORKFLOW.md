@@ -147,7 +147,22 @@ Candidate sweeps depend on the comparison policy:
 
 If the nearest pose belongs to another sweep, the active sweep may change.
 
-## 8. When A Loading Dialog Appears
+## 8. Render Map Dropdown
+
+After a NeRF render is available, the `NeRF Render` panel keeps the same pose
+result in memory and lets you switch the displayed map from a dropdown.
+
+Use this to inspect:
+
+- the final `intensity_map`
+- attenuation/reflection maps
+- cumulative transmission maps
+- scatter and confidence terms
+
+Changing the dropdown does not trigger a new render. It only changes which
+already-computed map is shown.
+
+## 9. When A Loading Dialog Appears
 
 Some actions still perform heavy synchronous work.
 
@@ -161,7 +176,7 @@ see that it is still working.
 
 This is a usability improvement, not a final performance solution.
 
-## 9. Common Troubleshooting
+## 10. Common Troubleshooting
 
 ### The scene looks too cluttered
 
@@ -199,7 +214,7 @@ That usually means:
 
 Keep the visible set small unless you specifically need a larger overlay.
 
-## 10. Recommended QA For New Datasets
+## 11. Recommended QA For New Datasets
 
 When using a new multi-sweep dataset:
 

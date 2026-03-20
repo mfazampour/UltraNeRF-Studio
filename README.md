@@ -21,46 +21,30 @@ At a high level, the code learns a 3D field from ultrasound data:
 
 This is not a standard NeRF that predicts RGB and density. The active training path predicts ultrasound-oriented quantities such as attenuation, reflection, and scattering amplitude, then renders a grayscale ultrasound-like image from them.
 
-## Repository structure
+## Documentation
 
-The project is script-driven. There is no package layout or single library entry point; most workflows are top-level Python scripts.
+The project is script-driven. There is no package layout or single library
+entry point; most workflows are top-level Python scripts.
 
-For a quick folder map, see [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md).
-For the multi-sweep visualization design and QA workflow, see
-[`docs/MULTI_SWEEP_VISUALIZATION.md`](docs/MULTI_SWEEP_VISUALIZATION.md).
-For the current visualizer workspace and controls, see
-[`docs/VISUALIZER_OVERVIEW.md`](docs/VISUALIZER_OVERVIEW.md) and
-[`docs/VISUALIZER_WORKFLOW.md`](docs/VISUALIZER_WORKFLOW.md).
+Start here:
 
-Multi-sweep viewer entry point:
+- repository layout: [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)
+- visualizer overview: [`docs/VISUALIZER_OVERVIEW.md`](docs/VISUALIZER_OVERVIEW.md)
+- visualizer workflow: [`docs/VISUALIZER_WORKFLOW.md`](docs/VISUALIZER_WORKFLOW.md)
+- multi-sweep design and QA: [`docs/MULTI_SWEEP_VISUALIZATION.md`](docs/MULTI_SWEEP_VISUALIZATION.md)
+
+## Visualizer
+
+The repository includes a napari-based 3D visualizer for tracked sweeps and
+checkpoint-backed NeRF review.
+
+Main entry point:
 
 ```bash
 python run_visualize_multi_sweeps.py --manifest-path <manifest.json>
 ```
 
-## Visualizer
-
-The repository now includes a napari-based 3D visualizer for tracked ultrasound
-data and checkpoint-backed NeRF review.
-
-Current visualizer capabilities:
-
-- build and show a fused 3D volume from tracked sweeps
-- show the active probe, beam direction, and scan plane in 3D
-- show per-sweep trajectories
-- switch between aggregate view and per-sweep view
-- compare the current virtual probe pose to the nearest recorded frame
-- load a trained checkpoint and render the NeRF output for the current pose
-- manage multi-sweep visibility independently from comparison/search scope
-
-The main multi-sweep entry point is:
-
-```bash
-python run_visualize_multi_sweeps.py \
-  --manifest-path data/spine_phantom/multi_sweep_manifest.json
-```
-
-Checkpoint-backed launch:
+Checkpoint-backed example:
 
 ```bash
 python run_visualize_multi_sweeps.py \
@@ -71,39 +55,16 @@ python run_visualize_multi_sweeps.py \
   --render-trigger-mode manual
 ```
 
-No-GUI summary mode:
+The current workspace supports:
 
-```bash
-python run_visualize_multi_sweeps.py \
-  --manifest-path data/spine_phantom/multi_sweep_manifest.json \
-  --no-gui
-```
+- fused 3D sweep volumes
+- active/visible/enabled sweep state
+- nearest recorded-frame comparison
+- NeRF rendering from the current probe pose
+- dropdown switching between the final render and intermediate acoustic maps
 
-Example workspace:
-
-![Multi-sweep visualizer workspace](docs/gui.png)
-
-Important visualizer concepts:
-
-- `Active Sweep`
-  The sweep whose frame index, reset behavior, and probe-centric controls are
-  currently driving the UI.
-
-- `Enabled`
-  Sweeps that are eligible for nearest-frame comparison and `Snap To Nearest`.
-
-- `Visible`
-  Sweeps whose per-sweep volumes are shown when aggregate mode is off.
-
-- `Show Aggregate Volume`
-  When enabled, one fused all-sweeps volume is shown. When disabled, the viewer
-  switches to per-sweep volume display.
-
-The viewer is documented in more detail here:
-
-- [`docs/VISUALIZER_OVERVIEW.md`](docs/VISUALIZER_OVERVIEW.md)
-- [`docs/VISUALIZER_WORKFLOW.md`](docs/VISUALIZER_WORKFLOW.md)
-- [`docs/MULTI_SWEEP_VISUALIZATION.md`](docs/MULTI_SWEEP_VISUALIZATION.md)
+For the UI layout, controls, and review workflow, use the dedicated visualizer
+docs instead of this README.
 
 ### Main training and evaluation scripts
 

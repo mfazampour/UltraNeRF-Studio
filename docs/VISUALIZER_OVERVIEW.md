@@ -189,6 +189,28 @@ That render uses:
 The viewer itself works in millimeters. The model runtime converts to the
 meter-scale format expected by the training code at the inference boundary.
 
+### Intermediate Acoustic Maps
+
+The render panel now includes a dropdown for switching the displayed output
+without rerendering.
+
+The default selection is `intensity_map`, which is the final ultrasound-like
+render. Depending on the active renderer output, the same panel can also show
+intermediate maps such as:
+
+- `attenuation_coeff`
+- `reflection_coeff`
+- `attenuation_total`
+- `reflection_total`
+- `scatter_amplitude`
+- `confidence_maps`
+- `b`
+- `r`
+- `r_amplified`
+
+These maps come from the existing renderer output payload. The dropdown only
+changes which map is displayed for the current rendered pose.
+
 ## Performance Notes
 
 The expensive parts of the viewer are usually not the pose math. They are:
