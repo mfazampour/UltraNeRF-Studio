@@ -1,7 +1,7 @@
 import numpy as np
 
-from visualization.sweep_volume import FusedSweepVolume
-from visualization.volume_cache import cache_metadata_matches, load_fused_volume_cache, save_fused_volume_cache
+from ultranerf.visualization.sweep_volume import FusedSweepVolume
+from ultranerf.visualization.volume_cache import cache_metadata_matches, load_fused_volume_cache, save_fused_volume_cache
 
 
 def make_fused_volume() -> FusedSweepVolume:

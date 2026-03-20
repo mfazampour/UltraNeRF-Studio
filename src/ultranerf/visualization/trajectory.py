@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from visualization.transforms import ensure_pose_matrix, pose_to_axes
+from ultranerf.visualization.transforms import ensure_pose_matrix, pose_to_axes
 
 
 @dataclass(frozen=True)

@@ -10,14 +10,14 @@ import json
 
 import numpy as np
 
-from visualization.alignment_validation import AlignmentValidationResult, validate_multi_sweep_alignment
-from visualization.app import NerfLaunchConfig
-from visualization.multi_sweep import MultiSweepScene
-from visualization.multi_sweep_loader import load_multi_sweep_scene_from_manifest
-from visualization.multi_sweep_ui import MultiSweepSceneController
-from visualization.multi_sweep_volume import MultiSweepFusionResult
-from visualization.render_controller import RenderController
-from visualization.sweep_volume import FusionDevice, FusionReductionMode
+from ultranerf.visualization.alignment_validation import AlignmentValidationResult, validate_multi_sweep_alignment
+from ultranerf.visualization.app import NerfLaunchConfig
+from ultranerf.visualization.multi_sweep import MultiSweepScene
+from ultranerf.visualization.multi_sweep_loader import load_multi_sweep_scene_from_manifest
+from ultranerf.visualization.multi_sweep_ui import MultiSweepSceneController
+from ultranerf.visualization.multi_sweep_volume import MultiSweepFusionResult
+from ultranerf.visualization.render_controller import RenderController
+from ultranerf.visualization.sweep_volume import FusionDevice, FusionReductionMode
 
 
 @dataclass
@@ -269,7 +269,7 @@ def build_multi_sweep_render_controller(
         raise FileNotFoundError(f"Config not found: {config_path}")
 
     if nerf_session_factory is None:
-        from visualization.nerf_session import NerfSession
+        from ultranerf.visualization.nerf_session import NerfSession
 
         nerf_session_factory = NerfSession.from_checkpoint
 
@@ -347,12 +347,12 @@ def launch_multi_sweep_visualization_app(
 ) -> MultiSweepLaunchSession:
     """Launch a napari multi-sweep session."""
     profiler = StartupProfiler()
-    from visualization.comparison_panel import create_comparison_panel
-    from visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController
-    from visualization.multi_sweep_ui import create_multi_sweep_controls, create_sweep_selection_controls
-    from visualization.probe_controls import create_probe_controls
-    from visualization.render_panel import create_render_panel
-    from visualization.volume_viewer import launch_basic_volume_viewer
+    from ultranerf.visualization.comparison_panel import create_comparison_panel
+    from ultranerf.visualization.multi_sweep_napari_ui import MultiSweepVisualizationUIController
+    from ultranerf.visualization.multi_sweep_ui import create_multi_sweep_controls, create_sweep_selection_controls
+    from ultranerf.visualization.probe_controls import create_probe_controls
+    from ultranerf.visualization.render_panel import create_render_panel
+    from ultranerf.visualization.volume_viewer import launch_basic_volume_viewer
 
     if render_controller is None and nerf_config is not None:
         render_controller = build_multi_sweep_render_controller(state, nerf_config)
@@ -391,7 +391,7 @@ def launch_multi_sweep_visualization_app(
         ui_controller.attach_probe_controls(probe_controls)
 
         if use_multi_view_workspace:
-            from visualization.embedded_napari_panels import (
+            from ultranerf.visualization.embedded_napari_panels import (
                 create_embedded_comparison_panel,
                 create_embedded_render_panel,
             )

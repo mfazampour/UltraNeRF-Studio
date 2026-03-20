@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import argparse
 import json
 from pathlib import Path
 
-from visualization.app import NerfLaunchConfig
-from visualization.multi_sweep_app import (
+from ultranerf.visualization.app import NerfLaunchConfig
+from ultranerf.visualization.multi_sweep_app import (
     launch_multi_sweep_visualization_app,
     prepare_multi_sweep_visualization_app,
     resolve_multi_sweep_render_image_shape,

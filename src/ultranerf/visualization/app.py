@@ -8,8 +8,8 @@ from typing import Any
 
 import numpy as np
 
-from visualization.render_controller import RenderController, RenderTriggerMode
-from visualization.sweep_volume import (
+from ultranerf.visualization.render_controller import RenderController, RenderTriggerMode
+from ultranerf.visualization.sweep_volume import (
     FusionDevice,
     FusionReductionMode,
     FusedSweepVolume,
@@ -17,10 +17,10 @@ from visualization.sweep_volume import (
     fuse_sweeps_to_volume,
     volume_geometry_from_bounds_mm,
 )
-from visualization.trajectory import TrajectoryOverlay, build_trajectory_overlay
-from visualization.transforms import ProbeGeometry
-from visualization.volume_cache import cache_metadata_matches, load_fused_volume_cache, save_fused_volume_cache
-from visualization.volume_viewer import launch_basic_volume_viewer
+from ultranerf.visualization.trajectory import TrajectoryOverlay, build_trajectory_overlay
+from ultranerf.visualization.transforms import ProbeGeometry
+from ultranerf.visualization.volume_cache import cache_metadata_matches, load_fused_volume_cache, save_fused_volume_cache
+from ultranerf.visualization.volume_viewer import launch_basic_volume_viewer
 
 
 @dataclass
@@ -155,7 +155,7 @@ def build_render_controller(
         raise FileNotFoundError(f"Config not found: {config_path}")
 
     if nerf_session_factory is None:
-        from visualization.nerf_session import NerfSession
+        from ultranerf.visualization.nerf_session import NerfSession
 
         nerf_session_factory = NerfSession.from_checkpoint
 
@@ -222,7 +222,7 @@ def launch_visualization_app(
     nerf_config: NerfLaunchConfig | None = None,
 ) -> VisualizationLaunchSession:
     """Launch the napari viewer and attach scene overlays."""
-    from visualization.napari_ui import VisualizationUIController
+    from ultranerf.visualization.napari_ui import VisualizationUIController
 
     if render_controller is None and nerf_config is not None:
         render_controller = build_render_controller(state, nerf_config)
@@ -234,8 +234,8 @@ def launch_visualization_app(
     )
     ui_controller = VisualizationUIController(viewer, state, render_controller=render_controller)
     if render_controller is not None and hasattr(viewer, "window"):
-        from visualization.comparison_panel import create_comparison_panel
-        from visualization.render_panel import create_render_panel
+        from ultranerf.visualization.comparison_panel import create_comparison_panel
+        from ultranerf.visualization.render_panel import create_render_panel
 
         render_panel = create_render_panel(ui_controller)
         viewer.window.add_dock_widget(render_panel.widget, area="right", name="NeRF Render")
@@ -244,7 +244,7 @@ def launch_visualization_app(
         viewer.window.add_dock_widget(comparison_panel.widget, area="right", name="Nearest Recorded Frame")
         ui_controller.attach_comparison_panel(comparison_panel)
     if hasattr(viewer, "window"):
-        from visualization.probe_controls import create_probe_controls
+        from ultranerf.visualization.probe_controls import create_probe_controls
 
         probe_controls = create_probe_controls(ui_controller, num_frames=state.poses_mm.shape[0])
         viewer.window.add_dock_widget(probe_controls.widget, area="left", name="Probe Controls")

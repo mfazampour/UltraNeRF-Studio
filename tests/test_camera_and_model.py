@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from camera import Lie, Pose
-from model import BARF, NeRF, PoseRefine, Reconstruction
+from ultranerf.camera import Lie, Pose
+from ultranerf.model import BARF, NeRF, PoseRefine, Reconstruction
 
 
 def test_pose_compose_and_invert_are_consistent():

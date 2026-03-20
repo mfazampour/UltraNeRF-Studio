@@ -1,8 +1,8 @@
 import numpy as np
 
-from visualization.mpr import selection_from_world_point
-from visualization.probe_placement import default_probe_rotation, probe_pose_from_mpr_selection
-from visualization.transforms import VolumeGeometry
+from ultranerf.visualization.mpr import selection_from_world_point
+from ultranerf.visualization.probe_placement import default_probe_rotation, probe_pose_from_mpr_selection
+from ultranerf.visualization.transforms import VolumeGeometry
 
 
 def rotation_z_90() -> np.ndarray:

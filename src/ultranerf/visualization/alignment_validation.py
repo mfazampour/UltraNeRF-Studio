@@ -6,9 +6,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.sweep_volume import compute_sweep_bounds_mm
-from visualization.trajectory import trajectory_centers_from_poses
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.sweep_volume import compute_sweep_bounds_mm
+from ultranerf.visualization.trajectory import trajectory_centers_from_poses
 
 
 @dataclass(frozen=True)

@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 from torch.distributions.relaxed_bernoulli import RelaxedBernoulli
 
-from rendering_utils.denoising import wavelet_decomposition
-from rendering_utils.reflection import calculate_reflection_coefficient
+from ultranerf.rendering_utils.denoising import wavelet_decomposition
+from ultranerf.rendering_utils.reflection import calculate_reflection_coefficient
 
 
 def cumsum_exclusive(tensor: torch.Tensor) -> torch.Tensor:

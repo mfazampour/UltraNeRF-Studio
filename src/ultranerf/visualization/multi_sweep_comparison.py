@@ -7,9 +7,9 @@ from typing import Any
 
 import numpy as np
 
-from visualization.comparison import rotation_distance_deg, translation_distance_mm
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.comparison import rotation_distance_deg, translation_distance_mm
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 MultiSweepComparisonPolicy = str

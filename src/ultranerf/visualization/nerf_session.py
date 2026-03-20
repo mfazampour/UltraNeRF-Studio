@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 class SupportsParseArgs(Protocol):
@@ -35,8 +35,8 @@ def import_nerf_runtime() -> NerfRuntime:
     """
     import torch
 
-    from nerf_utils import create_nerf, render_us
-    from unerf_config import config_parser
+    from ultranerf.nerf_utils import create_nerf, render_us
+    from ultranerf.unerf_config import config_parser
 
     return NerfRuntime(
         torch=torch,

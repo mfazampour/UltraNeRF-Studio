@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from visualization.transforms import ProbeGeometry, pose_to_axes, probe_local_to_world, probe_plane_corners
+from ultranerf.visualization.transforms import ProbeGeometry, pose_to_axes, probe_local_to_world, probe_plane_corners
 
 
 @dataclass(frozen=True)

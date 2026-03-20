@@ -1,12 +1,12 @@
 import numpy as np
 
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.multi_sweep_comparison import (
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.multi_sweep_comparison import (
     build_multi_sweep_comparison_payload,
     find_multi_sweep_pose_match,
     resolve_candidate_sweeps,
 )
-from visualization.transforms import ProbeGeometry
+from ultranerf.visualization.transforms import ProbeGeometry
 
 
 def make_images(value: float) -> np.ndarray:

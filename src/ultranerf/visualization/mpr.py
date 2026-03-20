@@ -7,7 +7,7 @@ from typing import Literal
 
 import numpy as np
 
-from visualization.transforms import VolumeGeometry, voxel_to_world, world_to_voxel
+from ultranerf.visualization.transforms import VolumeGeometry, voxel_to_world, world_to_voxel
 
 
 MPRViewName = Literal["sagittal", "coronal", "axial"]

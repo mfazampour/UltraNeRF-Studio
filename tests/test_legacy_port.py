@@ -1,6 +1,6 @@
 import torch
 
-from model import BARF, NeRF, Reconstruction
+from ultranerf.model import BARF, NeRF, Reconstruction
 
 
 def test_pytorch_nerf_port_produces_expected_output_shape():

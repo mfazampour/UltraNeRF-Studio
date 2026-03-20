@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from visualization.transforms import ProbeGeometry, ensure_pose_matrix
+from ultranerf.visualization.transforms import ProbeGeometry, ensure_pose_matrix
 
 
 AlignmentSource = str

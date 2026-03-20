@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from visualization.app import (
+from ultranerf.visualization.app import (
     NerfLaunchConfig,
     build_or_load_fused_volume,
     build_render_controller,
@@ -11,7 +11,7 @@ from visualization.app import (
     prepare_visualization_app,
     resolve_render_image_shape,
 )
-from visualization.sweep_volume import fuse_sweeps_to_volume, resolve_fusion_device
+from ultranerf.visualization.sweep_volume import fuse_sweeps_to_volume, resolve_fusion_device
 
 
 def make_dataset(tmp_path: Path):
@@ -231,7 +231,10 @@ def test_launch_visualization_app_initializes_ui_controller(monkeypatch, tmp_pat
     import sys
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
-    monkeypatch.setattr("visualization.probe_controls.create_probe_controls", lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames))
+    monkeypatch.setattr(
+        "ultranerf.visualization.probe_controls.create_probe_controls",
+        lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames),
+    )
 
     session = launch_visualization_app(state)
 
@@ -353,15 +356,24 @@ def test_launch_visualization_app_builds_render_controller_when_nerf_enabled(mon
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
     monkeypatch.setattr(
-        "visualization.app.build_render_controller",
-        lambda state, nerf_config: __import__("visualization.render_controller", fromlist=["RenderController"]).RenderController(
+        "ultranerf.visualization.app.build_render_controller",
+        lambda state, nerf_config: __import__("ultranerf.visualization.render_controller", fromlist=["RenderController"]).RenderController(
             nerf_session=FakeNerfSession(),
             trigger_mode=nerf_config.trigger_mode,
         ),
     )
-    monkeypatch.setattr("visualization.render_panel.create_render_panel", lambda ui_controller: FakeRenderPanel(ui_controller))
-    monkeypatch.setattr("visualization.probe_controls.create_probe_controls", lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames))
-    monkeypatch.setattr("visualization.comparison_panel.create_comparison_panel", lambda: FakeComparisonPanel())
+    monkeypatch.setattr(
+        "ultranerf.visualization.render_panel.create_render_panel",
+        lambda ui_controller: FakeRenderPanel(ui_controller),
+    )
+    monkeypatch.setattr(
+        "ultranerf.visualization.probe_controls.create_probe_controls",
+        lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames),
+    )
+    monkeypatch.setattr(
+        "ultranerf.visualization.comparison_panel.create_comparison_panel",
+        lambda: FakeComparisonPanel(),
+    )
 
     session = launch_visualization_app(
         state,

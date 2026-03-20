@@ -1,3 +1,13 @@
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import argparse
 import os
 import pprint
@@ -9,7 +19,7 @@ import torch
 from PIL import Image
 
 import run_ultranerf as run_nerf_ultrasound
-from load_us import load_us_data
+from ultranerf.load_us import load_us_data
 import open3d as o3d
 import matplotlib.cm as cm
 

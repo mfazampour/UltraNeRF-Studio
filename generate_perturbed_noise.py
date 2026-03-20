@@ -1,3 +1,13 @@
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import argparse
 import os
 
@@ -6,8 +16,8 @@ import numpy as np
 import torch
 from PIL import Image
 
-from camera import Lie, Pose
-from test_utils import visualize_poses
+from ultranerf.camera import Lie, Pose
+from ultranerf.test_utils import visualize_poses
 
 
 def descale_poses(poses, H, W, probe_depth, probe_width):

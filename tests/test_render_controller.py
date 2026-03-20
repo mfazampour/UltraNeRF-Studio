@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.render_controller import RenderController
+from ultranerf.visualization.render_controller import RenderController
 
 
 class FakeSession:

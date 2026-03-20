@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-from visualization.app import NerfLaunchConfig
-from visualization.multi_sweep_app import (
+from ultranerf.visualization.app import NerfLaunchConfig
+from ultranerf.visualization.multi_sweep_app import (
     build_multi_sweep_render_controller,
     launch_multi_sweep_visualization_app,
     prepare_multi_sweep_visualization_app,
@@ -202,19 +202,19 @@ def test_launch_multi_sweep_visualization_app_initializes_fake_viewer(monkeypatc
 
     monkeypatch.setitem(sys.modules, "napari", FakeNapari)
     monkeypatch.setattr(
-        "visualization.probe_controls.create_probe_controls",
+        "ultranerf.visualization.probe_controls.create_probe_controls",
         lambda ui_controller, num_frames: FakeProbeControls(ui_controller, num_frames),
     )
     monkeypatch.setattr(
-        "visualization.multi_sweep_ui.create_multi_sweep_controls",
+        "ultranerf.visualization.multi_sweep_ui.create_multi_sweep_controls",
         lambda controller, on_state_changed=None: FakeMultiSweepControls(),
     )
     monkeypatch.setattr(
-        "visualization.multi_sweep_ui.create_sweep_selection_controls",
+        "ultranerf.visualization.multi_sweep_ui.create_sweep_selection_controls",
         lambda controller, on_apply=None: FakeSweepSelectionControls(),
     )
     monkeypatch.setattr(
-        "visualization.comparison_panel.create_comparison_panel",
+        "ultranerf.visualization.comparison_panel.create_comparison_panel",
         lambda: FakeComparisonPanel(),
     )
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from visualization.mpr import MPRSelection
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.mpr import MPRSelection
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 def pose_from_rotation_and_origin(rotation: np.ndarray, origin_mm: np.ndarray) -> np.ndarray:

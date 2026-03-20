@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.render_panel import (
+from ultranerf.visualization.render_panel import (
     extract_render_image,
     format_render_metadata,
     get_available_render_map_keys,

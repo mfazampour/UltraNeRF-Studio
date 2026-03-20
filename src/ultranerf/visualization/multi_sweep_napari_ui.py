@@ -10,17 +10,17 @@ from typing import Any
 
 import numpy as np
 
-from visualization.comparison_panel import extract_matched_image, format_comparison_metadata
-from visualization.multi_sweep_app import MultiSweepVisualizationAppState
-from visualization.multi_sweep_comparison import build_multi_sweep_comparison_payload, find_multi_sweep_pose_match
-from visualization.multi_sweep_ui import MultiSweepViewerState
-from visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
-from visualization.probe_representation import build_probe_representation
-from visualization.render_controller import RenderController
-from visualization.render_panel import extract_render_image, format_render_metadata
-from visualization.transforms import ensure_pose_matrix
-from visualization.ui_busy import ui_busy_feedback
-from visualization.volume_viewer import build_volume_layer_config_from_preset
+from ultranerf.visualization.comparison_panel import extract_matched_image, format_comparison_metadata
+from ultranerf.visualization.multi_sweep_app import MultiSweepVisualizationAppState
+from ultranerf.visualization.multi_sweep_comparison import build_multi_sweep_comparison_payload, find_multi_sweep_pose_match
+from ultranerf.visualization.multi_sweep_ui import MultiSweepViewerState
+from ultranerf.visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
+from ultranerf.visualization.probe_representation import build_probe_representation
+from ultranerf.visualization.render_controller import RenderController
+from ultranerf.visualization.render_panel import extract_render_image, format_render_metadata
+from ultranerf.visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.ui_busy import ui_busy_feedback
+from ultranerf.visualization.volume_viewer import build_volume_layer_config_from_preset
 
 
 def _color_to_hex(color: tuple[float, float, float] | None, *, default: str) -> str:

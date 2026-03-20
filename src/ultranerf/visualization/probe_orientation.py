@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from visualization.probe_placement import pose_from_rotation_and_origin
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.probe_placement import pose_from_rotation_and_origin
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 def rotation_matrix_x(angle_rad: float) -> np.ndarray:

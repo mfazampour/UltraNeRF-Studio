@@ -11,14 +11,14 @@ from typing import Any
 
 import numpy as np
 
-from visualization.app import VisualizationAppState
-from visualization.comparison import build_comparison_payload
-from visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
-from visualization.probe_representation import ProbeRepresentation, build_probe_representation
-from visualization.render_controller import RenderController
-from visualization.render_panel import extract_render_image, format_render_metadata
-from visualization.trajectory import TrajectoryOverlay, nearest_trajectory_index
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.app import VisualizationAppState
+from ultranerf.visualization.comparison import build_comparison_payload
+from ultranerf.visualization.probe_orientation import pose_from_yaw_pitch_roll, pose_to_yaw_pitch_roll
+from ultranerf.visualization.probe_representation import ProbeRepresentation, build_probe_representation
+from ultranerf.visualization.render_controller import RenderController
+from ultranerf.visualization.render_panel import extract_render_image, format_render_metadata
+from ultranerf.visualization.trajectory import TrajectoryOverlay, nearest_trajectory_index
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 def _polyline_shape(points_mm: np.ndarray) -> list[np.ndarray]:
@@ -354,7 +354,7 @@ class VisualizationUIController:
             self.comparison_panel.set_status("No comparison available")
             self.comparison_panel.set_metadata("")
             return
-        from visualization.comparison_panel import extract_matched_image, format_comparison_metadata
+        from ultranerf.visualization.comparison_panel import extract_matched_image, format_comparison_metadata
 
         self.comparison_panel.set_status("Comparison ready")
         self.comparison_panel.set_metadata(format_comparison_metadata(self.state.comparison_payload))

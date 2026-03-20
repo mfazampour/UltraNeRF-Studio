@@ -1,13 +1,13 @@
 import numpy as np
 
-from visualization.comparison import (
+from ultranerf.visualization.comparison import (
     build_comparison_payload,
     find_nearest_pose_match,
     pose_match_score,
     rotation_distance_deg,
     translation_distance_mm,
 )
-from visualization.comparison_panel import normalize_recorded_image_for_display
+from ultranerf.visualization.comparison_panel import normalize_recorded_image_for_display
 
 
 def translation_pose(tx: float, ty: float, tz: float) -> np.ndarray:

@@ -1,6 +1,6 @@
 import numpy as np
 
-from load_us import load_rec_data, load_us_data
+from ultranerf.load_us import load_rec_data, load_us_data
 
 
 def make_pose(tx_mm: float) -> np.ndarray:

@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.probe_orientation import (
+from ultranerf.visualization.probe_orientation import (
     orthonormalize_rotation,
     pose_from_yaw_pitch_roll,
     pose_to_yaw_pitch_roll,

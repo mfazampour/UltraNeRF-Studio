@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from visualization.sweep_volume import FusedSweepVolume
+from ultranerf.visualization.sweep_volume import FusedSweepVolume
 
 
 CACHE_VERSION = 1

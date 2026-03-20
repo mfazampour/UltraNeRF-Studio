@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from evident_border import detect_edges, get_borders, speckle_reducing_anisotropic_diffusion
-from rendering_utils.reflection import calculate_reflection_coefficient
+from ultranerf.rendering_utils.reflection import calculate_reflection_coefficient
 
 
 def test_srad_rejects_non_float32_inputs():

@@ -1,7 +1,7 @@
 import numpy as np
 
-from visualization.mpr import orthogonal_slice_indices, selection_from_world_point, update_selection_for_view_click
-from visualization.transforms import VolumeGeometry
+from ultranerf.visualization.mpr import orthogonal_slice_indices, selection_from_world_point, update_selection_for_view_click
+from ultranerf.visualization.transforms import VolumeGeometry
 
 
 def make_geometry() -> VolumeGeometry:

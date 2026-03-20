@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from model import NeRF, BARF, PoseRefine, Reconstruction
-from rendering import render_rays_us, render_rays_us_with_reconstruction, render_rays_us_with_reconstruction_pts
+from ultranerf.model import NeRF, BARF, PoseRefine, Reconstruction
+from ultranerf.rendering import render_rays_us, render_rays_us_with_reconstruction, render_rays_us_with_reconstruction_pts
 
 # Misc
 img2mse = lambda x, y: torch.mean((x - y) ** 2)

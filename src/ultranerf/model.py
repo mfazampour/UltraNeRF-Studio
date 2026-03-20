@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from camera import Lie, Pose
+from ultranerf.camera import Lie, Pose
 
 
 class NeRF(nn.Module):

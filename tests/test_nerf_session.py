@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from visualization.nerf_session import NerfRuntime, NerfSession, pose_mm_to_model_pose_m
+from ultranerf.visualization.nerf_session import NerfRuntime, NerfSession, pose_mm_to_model_pose_m
 
 
 class FakeParser:

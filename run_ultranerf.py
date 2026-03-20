@@ -11,6 +11,17 @@ Outputs:
 - periodic rendered training visualizations
 """
 
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+
 import inspect
 import os
 import time
@@ -25,9 +36,9 @@ from monai.losses import LocalNormalizedCrossCorrelationLoss
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
-from load_us import load_us_data
-from nerf_utils import create_nerf, img2mse, render_us, compute_loss, compute_regularization
-from unerf_config import config_parser
+from ultranerf.load_us import load_us_data
+from ultranerf.nerf_utils import create_nerf, img2mse, render_us, compute_loss, compute_regularization
+from ultranerf.unerf_config import config_parser
 
 if torch.cuda.is_available():
     torch.cuda.set_per_process_memory_fraction(0.95)

@@ -1,4 +1,4 @@
-from visualization.volume_presets import PRESETS, get_volume_preset
+from ultranerf.visualization.volume_presets import PRESETS, get_volume_preset
 
 
 def test_get_volume_preset_returns_expected_named_preset():

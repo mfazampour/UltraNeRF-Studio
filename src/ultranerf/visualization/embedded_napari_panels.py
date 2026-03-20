@@ -6,8 +6,8 @@ from typing import Any, Callable
 
 import numpy as np
 
-from visualization.comparison_panel import normalize_recorded_image_for_display
-from visualization.render_panel import (
+from ultranerf.visualization.comparison_panel import normalize_recorded_image_for_display
+from ultranerf.visualization.render_panel import (
     DEFAULT_RENDER_MAP_KEY,
     extract_render_image,
     format_render_metadata,

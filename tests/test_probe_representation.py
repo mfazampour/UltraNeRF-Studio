@@ -1,7 +1,7 @@
 import numpy as np
 
-from visualization.probe_representation import build_probe_representation
-from visualization.transforms import ProbeGeometry
+from ultranerf.visualization.probe_representation import build_probe_representation
+from ultranerf.visualization.transforms import ProbeGeometry
 
 
 def translation_pose(tx: float, ty: float, tz: float) -> np.ndarray:

@@ -12,8 +12,8 @@ from typing import Any
 
 import numpy as np
 
-from visualization.sweep_volume import FusedSweepVolume
-from visualization.volume_presets import VolumePreset, get_volume_preset
+from ultranerf.visualization.sweep_volume import FusedSweepVolume
+from ultranerf.visualization.volume_presets import VolumePreset, get_volume_preset
 
 
 @dataclass(frozen=True)

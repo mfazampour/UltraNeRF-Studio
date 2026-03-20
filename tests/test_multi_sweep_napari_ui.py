@@ -1,18 +1,18 @@
 import numpy as np
 
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.multi_sweep_app import MultiSweepVisualizationAppState
-from visualization.multi_sweep_napari_ui import (
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.multi_sweep_app import MultiSweepVisualizationAppState
+from ultranerf.visualization.multi_sweep_napari_ui import (
     MultiSweepVisualizationUIController,
     _color_to_hex,
     _compute_aggregate_contrast_limits,
     _reorder_named_layers,
 )
-from visualization.multi_sweep_ui import MultiSweepSceneController
-from visualization.multi_sweep_volume import fuse_multi_sweep_scene
-from visualization.render_controller import RenderController
-from visualization.transforms import ProbeGeometry
-from visualization.alignment_validation import validate_multi_sweep_alignment
+from ultranerf.visualization.multi_sweep_ui import MultiSweepSceneController
+from ultranerf.visualization.multi_sweep_volume import fuse_multi_sweep_scene
+from ultranerf.visualization.render_controller import RenderController
+from ultranerf.visualization.transforms import ProbeGeometry
+from ultranerf.visualization.alignment_validation import validate_multi_sweep_alignment
 
 
 class FakeLayer:

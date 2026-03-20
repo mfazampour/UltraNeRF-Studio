@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from visualization.transforms import ensure_pose_matrix
+from ultranerf.visualization.transforms import ensure_pose_matrix
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,11 @@
 import numpy as np
 
-from visualization.sweep_volume import (
+from ultranerf.visualization.sweep_volume import (
     compute_sweep_bounds_mm,
     fuse_sweeps_to_volume,
     volume_geometry_from_bounds_mm,
 )
-from visualization.transforms import ProbeGeometry, VolumeGeometry
+from ultranerf.visualization.transforms import ProbeGeometry, VolumeGeometry
 
 
 def translation_pose(tx: float, ty: float, tz: float) -> np.ndarray:

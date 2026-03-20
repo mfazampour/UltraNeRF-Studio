@@ -1,8 +1,15 @@
-import torch
+from pathlib import Path
 import sys
 
-sys.path.append("/home/magdalena_wysocki/projects/UltraBARF-PyTorch")
-import nerf_utils
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+import torch
+import ultranerf.nerf_utils as nerf_utils
 import numpy as np
 import open3d as o3d
 
@@ -114,5 +121,4 @@ scale_x, scale_y, scale_z = calculate_scale(flattened_points)
 print(f"Scale in X direction: {scale_x}")
 print(f"Scale in Y direction: {scale_y}")
 print(f"Scale in Z direction: {scale_z}")
-
 

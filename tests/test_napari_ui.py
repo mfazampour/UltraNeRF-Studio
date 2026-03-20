@@ -1,11 +1,11 @@
 import numpy as np
 
-from visualization.app import VisualizationAppState
-from visualization.napari_ui import VisualizationUIController
-from visualization.render_controller import RenderController
-from visualization.sweep_volume import FusedSweepVolume
-from visualization.trajectory import build_trajectory_overlay
-from visualization.transforms import ProbeGeometry
+from ultranerf.visualization.app import VisualizationAppState
+from ultranerf.visualization.napari_ui import VisualizationUIController
+from ultranerf.visualization.render_controller import RenderController
+from ultranerf.visualization.sweep_volume import FusedSweepVolume
+from ultranerf.visualization.trajectory import build_trajectory_overlay
+from ultranerf.visualization.transforms import ProbeGeometry
 
 
 class FakeLayer:

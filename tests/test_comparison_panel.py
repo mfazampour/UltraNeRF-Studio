@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.comparison_panel import (
+from ultranerf.visualization.comparison_panel import (
     extract_matched_image,
     format_comparison_metadata,
     normalize_recorded_image_for_display,

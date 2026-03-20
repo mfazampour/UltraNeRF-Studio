@@ -9,11 +9,21 @@ data, reuses a cached volume when available, and can either:
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import argparse
 import json
 from pathlib import Path
 
-from visualization.app import NerfLaunchConfig, launch_visualization_app, prepare_visualization_app, resolve_render_image_shape
+from ultranerf.visualization.app import NerfLaunchConfig, launch_visualization_app, prepare_visualization_app, resolve_render_image_shape
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.transforms import (
+from ultranerf.visualization.transforms import (
     ProbeGeometry,
     VolumeGeometry,
     ensure_pose_matrix,

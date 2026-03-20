@@ -7,8 +7,8 @@ from typing import Iterable
 
 import numpy as np
 
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.sweep_volume import (
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.sweep_volume import (
     FusionDevice,
     FusionReductionMode,
     FusedSweepVolume,
@@ -16,7 +16,7 @@ from visualization.sweep_volume import (
     fuse_sweeps_to_volume,
     volume_geometry_from_bounds_mm,
 )
-from visualization.trajectory import TrajectoryOverlay, build_trajectory_overlay
+from ultranerf.visualization.trajectory import TrajectoryOverlay, build_trajectory_overlay
 
 
 @dataclass(frozen=True)

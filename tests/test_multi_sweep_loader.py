@@ -4,13 +4,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from visualization.multi_sweep_loader import (
+from ultranerf.visualization.multi_sweep_loader import (
     discover_sweep_directories,
     load_multi_sweep_scene_from_directory,
     load_multi_sweep_scene_from_manifest,
     load_sweep_record,
 )
-from visualization.transforms import ProbeGeometry
+from ultranerf.visualization.transforms import ProbeGeometry
 
 
 def make_images(num_frames: int = 2, height: int = 3, width: int = 4) -> np.ndarray:

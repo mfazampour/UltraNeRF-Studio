@@ -8,7 +8,7 @@ from typing import Iterable, Tuple
 
 import numpy as np
 
-from visualization.transforms import (
+from ultranerf.visualization.transforms import (
     ProbeGeometry,
     VolumeGeometry,
     pixel_to_probe_local,

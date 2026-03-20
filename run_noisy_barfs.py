@@ -8,6 +8,17 @@ for each configuration.
 Use this when benchmarking pose robustness across synthetic perturbations.
 """
 
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if ROOT.name == "scripts":
+    SRC = ROOT.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+
 import argparse
 import os
 import subprocess

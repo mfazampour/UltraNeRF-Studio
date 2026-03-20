@@ -1,13 +1,13 @@
 import numpy as np
 
-from visualization.alignment_validation import (
+from ultranerf.visualization.alignment_validation import (
     compare_sweeps_alignment,
     nearest_center_distance_mm,
     support_overlap_fraction,
     validate_multi_sweep_alignment,
 )
-from visualization.multi_sweep import MultiSweepScene, SweepRecord
-from visualization.transforms import ProbeGeometry
+from ultranerf.visualization.multi_sweep import MultiSweepScene, SweepRecord
+from ultranerf.visualization.transforms import ProbeGeometry
 
 
 def make_images() -> np.ndarray:

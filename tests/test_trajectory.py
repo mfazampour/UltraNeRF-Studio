@@ -1,6 +1,6 @@
 import numpy as np
 
-from visualization.trajectory import build_trajectory_overlay, nearest_trajectory_index, trajectory_centers_from_poses
+from ultranerf.visualization.trajectory import build_trajectory_overlay, nearest_trajectory_index, trajectory_centers_from_poses
 
 
 def translation_pose(tx: float, ty: float, tz: float) -> np.ndarray:
